@@ -1,0 +1,51 @@
+# Dependencies
+node_modules/
+venv/
+__pycache__/
+*.pyc
+
+# Environment
+.env
+.env.local
+.env.production
+
+# Expo
+.expo/
+dist/
+*.jks
+*.p8
+*.p12
+*.key
+*.mobileprovision
+*.orig.*
+
+# iOS/Android builds
+ios/
+android/
+*.apk
+*.ipa
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Python
+*.egg-info/
+build/
+dist/
+*.egg
+
+# Testing
+coverage/
+.coverage
+htmlcov/
+
+# Logs
+*.log
+npm-debug.log*

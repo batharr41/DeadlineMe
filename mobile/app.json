@@ -1,0 +1,35 @@
+{
+  "expo": {
+    "name": "DeadlineMe",
+    "slug": "deadlineme",
+    "version": "1.0.0",
+    "orientation": "portrait",
+    "userInterfaceStyle": "dark",
+    "splash": {
+      "backgroundColor": "#0A0A0F",
+      "resizeMode": "contain"
+    },
+    "assetBundlePatterns": [
+      "**/*"
+    ],
+    "ios": {
+      "supportsTablet": false,
+      "bundleIdentifier": "com.deadlineme.app",
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "com.deadlineme.app",
+      "versionCode": 1
+    },
+    "plugins": [
+      "expo-secure-store",
+      "expo-asset",
+      "@react-native-community/datetimepicker"
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "your-eas-project-id"
+      }
+    }
+  }
+}
