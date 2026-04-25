@@ -56,7 +56,7 @@ export default function NewStakeScreen({ navigation }) {
         description: '',
       });
       await scheduleStakeReminders(result.id || 'temp', title, deadline.toISOString());
-      navigation.navigate('Dashboard');
+      navigation.navigate('MainTabs');
     } catch (err) {
       Alert.alert('Error', err.message || 'Failed to create stake. Try again.');
     } finally {
