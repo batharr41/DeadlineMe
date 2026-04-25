@@ -3,45 +3,61 @@ import { View, Text, TouchableOpacity, StyleSheet } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../utils/theme';
 
+const c = theme.colors;
+
 export default function SplashScreen({ navigation }) {
   const steps = [
-    { icon: '🎯', text: 'Set a goal with a deadline' },
-    { icon: '💸', text: 'Stake real money on it' },
-    { icon: '🤖', text: 'AI checks in & verifies' },
-    { icon: '✅', text: 'Hit it? Get your money back' },
-    { icon: '😈', text: 'Miss it? It goes to a cause you hate' },
+    { icon: '🎯', text: 'Set a goal with a real deadline' },
+    { icon: '💸', text: 'Stake money on it — your choice' },
+    { icon: '🤖', text: 'AI checks in and verifies your proof' },
+    { icon: '✅', text: 'Complete it? Full refund' },
+    { icon: '🤲', text: 'Miss it? Your loss becomes someone\'s gain' },
   ];
 
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <Text style={styles.emoji}>🔥</Text>
-        <Text style={styles.title}>DeadlineMe</Text>
-        <Text style={styles.subtitle}>Put your money where your goals are.</Text>
 
+        {/* Logo mark */}
+        <View style={styles.logoArea}>
+          <View style={styles.logoMark}>
+            <Text style={styles.logoEmoji}>🔥</Text>
+          </View>
+          <Text style={styles.wordmark}>DeadlineMe</Text>
+          <Text style={styles.tagline}>Put your money where your goals are.</Text>
+        </View>
+
+        {/* Steps */}
         <View style={styles.steps}>
           {steps.map((step, i) => (
             <View key={i} style={styles.stepRow}>
-              <Text style={styles.stepIcon}>{step.icon}</Text>
+              <View style={styles.stepIconWrap}>
+                <Text style={styles.stepIcon}>{step.icon}</Text>
+              </View>
               <Text style={styles.stepText}>{step.text}</Text>
             </View>
           ))}
         </View>
 
-        <TouchableOpacity
-          style={styles.primaryBtn}
-          onPress={() => navigation.navigate('SignUp')}
-          activeOpacity={0.8}
-        >
-          <Text style={styles.primaryBtnText}>Get Started — It's Free</Text>
-        </TouchableOpacity>
+        {/* CTAs */}
+        <View style={styles.ctas}>
+          <TouchableOpacity
+            style={styles.primaryBtn}
+            onPress={() => navigation.navigate('SignUp')}
+            activeOpacity={0.85}
+          >
+            <Text style={styles.primaryBtnText}>Get Started — It's Free</Text>
+          </TouchableOpacity>
 
-        <TouchableOpacity
-          onPress={() => navigation.navigate('SignIn')}
-          activeOpacity={0.7}
-        >
-          <Text style={styles.linkText}>Already have an account? Sign in</Text>
-        </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.ghostBtn}
+            onPress={() => navigation.navigate('SignIn')}
+            activeOpacity={0.7}
+          >
+            <Text style={styles.ghostBtnText}>I already have an account</Text>
+          </TouchableOpacity>
+        </View>
+
       </View>
     </SafeAreaView>
   );
@@ -50,62 +66,102 @@ export default function SplashScreen({ navigation }) {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.bg,
+    backgroundColor: c.bg,
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingHorizontal: 32,
+    paddingHorizontal: 28,
+    justifyContent: 'space-between',
+    paddingTop: 48,
+    paddingBottom: 16,
   },
-  emoji: {
-    fontSize: 64,
+
+  // Logo
+  logoArea: {
+    alignItems: 'center',
+  },
+  logoMark: {
+    width: 64,
+    height: 64,
+    borderRadius: 18,
+    backgroundColor: c.accentSoft,
+    borderWidth: 1,
+    borderColor: c.accentBorder,
+    alignItems: 'center',
+    justifyContent: 'center',
     marginBottom: 16,
   },
-  title: {
-    fontSize: 36,
+  logoEmoji: {
+    fontSize: 30,
+  },
+  wordmark: {
+    fontSize: 30,
     fontWeight: '700',
-    color: theme.colors.text,
-    marginBottom: 8,
+    color: c.text,
+    letterSpacing: -0.8,
+    marginBottom: 6,
   },
-  subtitle: {
-    fontSize: 16,
-    color: theme.colors.textMuted,
-    fontStyle: 'italic',
-    marginBottom: 48,
+  tagline: {
+    fontSize: 14,
+    color: c.textSecondary,
+    letterSpacing: 0.1,
   },
+
+  // Steps
   steps: {
-    width: '100%',
-    gap: 14,
-    marginBottom: 48,
+    gap: 16,
   },
   stepRow: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 12,
+    gap: 14,
+  },
+  stepIconWrap: {
+    width: 36,
+    height: 36,
+    borderRadius: 10,
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
   },
   stepIcon: {
-    fontSize: 20,
+    fontSize: 16,
   },
   stepText: {
     fontSize: 14,
-    color: theme.colors.textMuted,
+    color: c.textSecondary,
+    flex: 1,
+    lineHeight: 20,
+  },
+
+  // Buttons
+  ctas: {
+    gap: 10,
   },
   primaryBtn: {
-    width: '100%',
-    paddingVertical: 16,
-    backgroundColor: theme.colors.accent,
+    backgroundColor: c.accent,
     borderRadius: 14,
+    paddingVertical: 16,
     alignItems: 'center',
-    marginBottom: 16,
   },
   primaryBtnText: {
     color: '#fff',
-    fontSize: 17,
-    fontWeight: '700',
+    fontSize: 16,
+    fontWeight: '600',
+    letterSpacing: -0.2,
   },
-  linkText: {
-    color: theme.colors.textMuted,
-    fontSize: 14,
+  ghostBtn: {
+    borderRadius: 14,
+    paddingVertical: 14,
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: c.border,
+  },
+  ghostBtnText: {
+    color: c.textSecondary,
+    fontSize: 15,
   },
 });

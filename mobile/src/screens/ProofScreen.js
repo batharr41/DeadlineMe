@@ -1,45 +1,39 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, Alert } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { theme } from '../utils/theme';
 import { api } from '../services/api';
 import { cancelStakeReminders } from '../services/notifications';
 
+const c = theme.colors;
+
 export default function ProofScreen({ route, navigation }) {
   const { stake } = route.params;
   const [image, setImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
+  const [result, setResult] = useState(null);
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'We need camera roll access to upload proof.');
-      return;
+      return Alert.alert('Permission needed', 'Allow access to your photo library to upload proof.');
     }
-    const result = await ImagePicker.launchImageLibraryAsync({
+    const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
       quality: 0.8,
     });
-    if (!result.canceled) {
-      setImage(result.assets[0]);
-    }
+    if (!res.canceled) setImage(res.assets[0].uri);
   };
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
     if (status !== 'granted') {
-      Alert.alert('Permission needed', 'We need camera access to take a proof photo.');
-      return;
+      return Alert.alert('Permission needed', 'Allow camera access to take a proof photo.');
     }
-    const result = await ImagePicker.launchCameraAsync({
-      allowsEditing: true,
-      quality: 0.8,
-    });
-    if (!result.canceled) {
-      setImage(result.assets[0]);
-    }
+    const res = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
+    if (!res.canceled) setImage(res.assets[0].uri);
   };
 
   const handleSubmit = async () => {
@@ -47,136 +41,175 @@ export default function ProofScreen({ route, navigation }) {
     setSubmitting(true);
     try {
       const formData = new FormData();
-      const filename = image.uri.split('/').pop() || 'proof.jpg';
-      const match = /\.(\w+)$/.exec(filename);
-      const type = match ? `image/${match[1]}` : 'image/jpeg';
-
-      formData.append('proof', {
-        uri: image.uri,
-        name: filename,
-        type,
-      });
-
-      const result = await api.submitProof(stake.id, formData);
-      const stakeAmount = stake.stake || stake.stake_amount;
-
-      if (result.verified) {
-        // Stake is done — cancel any pending deadline reminders
+      formData.append('proof', { uri: image, type: 'image/jpeg', name: 'proof.jpg' });
+      const res = await api.submitProof(stake.id, formData);
+      setResult(res);
+      if (res.verified) {
         await cancelStakeReminders(stake.id);
-
-        Alert.alert(
-          '✅ Proof Verified!',
-          `${result.reasoning}\n\n$${stakeAmount} has been refunded to your card.`,
-          [{ text: 'Back to Dashboard', onPress: () => navigation.navigate('Dashboard') }]
-        );
-      } else {
-        Alert.alert(
-          '🤔 Not Quite',
-          `AI says: "${result.reasoning}"\n\nYour stake is still active. Try uploading clearer proof.`,
-          [
-            { text: 'Try Again', onPress: () => setImage(null) },
-            { text: 'Back', onPress: () => navigation.goBack() },
-          ]
-        );
       }
     } catch (err) {
-      Alert.alert('Error', err.message || 'Failed to submit proof. Try again.');
+      Alert.alert('Upload failed', 'Something went wrong. Try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
+  // Result screen
+  if (result) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <View style={styles.resultContainer}>
+          <Text style={styles.resultEmoji}>{result.verified ? '✅' : '🔄'}</Text>
+          <Text style={styles.resultTitle}>
+            {result.verified ? 'Proof Verified!' : 'Needs Review'}
+          </Text>
+          <Text style={styles.resultBody}>{result.reasoning}</Text>
+          {result.verified && (
+            <View style={styles.refundBadge}>
+              <Text style={styles.refundText}>Refund initiated · ${stake.stake_amount ?? stake.stake}</Text>
+            </View>
+          )}
+          <TouchableOpacity
+            style={styles.doneBtn}
+            onPress={() => navigation.navigate('Dashboard')}
+          >
+            <Text style={styles.doneBtnText}>Back to Dashboard</Text>
+          </TouchableOpacity>
+        </View>
+      </SafeAreaView>
+    );
+  }
+
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
-        <TouchableOpacity onPress={() => navigation.goBack()} disabled={submitting}>
-          <Text style={styles.back}>← Cancel</Text>
-        </TouchableOpacity>
 
-        <Text style={styles.title}>Upload Proof 📸</Text>
-        <Text style={styles.subtitle}>
-          Show AI you completed: "{stake.title}"
+        {/* Header */}
+        <View style={styles.topBar}>
+          <TouchableOpacity onPress={() => navigation.goBack()}>
+            <Text style={styles.backText}>← Cancel</Text>
+          </TouchableOpacity>
+        </View>
+
+        <Text style={styles.title}>Upload Proof</Text>
+        <Text style={styles.subtitle} numberOfLines={2}>
+          "{stake.title}"
         </Text>
 
+        {/* Image area */}
         {image ? (
           <View style={styles.previewContainer}>
-            <Image source={{ uri: image.uri }} style={styles.preview} />
-            <TouchableOpacity
-              style={styles.removeBtn}
-              onPress={() => setImage(null)}
-              disabled={submitting}
-            >
-              <Text style={styles.removeText}>✕ Remove</Text>
+            <Image source={{ uri: image }} style={styles.preview} />
+            <TouchableOpacity style={styles.removeBtn} onPress={() => setImage(null)}>
+              <Text style={styles.removeText}>Remove</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.uploadOptions}>
-            <TouchableOpacity style={styles.uploadBtn} onPress={takePhoto} activeOpacity={0.7}>
-              <Text style={styles.uploadIcon}>📷</Text>
-              <Text style={styles.uploadLabel}>Take Photo</Text>
+          <View style={styles.uploadArea}>
+            <TouchableOpacity style={styles.uploadOption} onPress={takePhoto} activeOpacity={0.7}>
+              <Text style={styles.uploadOptionIcon}>📷</Text>
+              <Text style={styles.uploadOptionText}>Take Photo</Text>
             </TouchableOpacity>
-            <TouchableOpacity style={styles.uploadBtn} onPress={pickImage} activeOpacity={0.7}>
-              <Text style={styles.uploadIcon}>🖼️</Text>
-              <Text style={styles.uploadLabel}>Choose from Gallery</Text>
+            <View style={styles.uploadDivider} />
+            <TouchableOpacity style={styles.uploadOption} onPress={pickImage} activeOpacity={0.7}>
+              <Text style={styles.uploadOptionIcon}>🖼️</Text>
+              <Text style={styles.uploadOptionText}>Choose from Library</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        <View style={styles.infoBox}>
-          <Text style={styles.infoTitle}>How AI verification works:</Text>
-          <Text style={styles.infoText}>
-            Our AI analyzes your proof image to confirm it matches your stated goal.
-            It checks for relevance, recency, and authenticity. Most verifications
-            complete in under 30 seconds.
+        {/* AI note */}
+        <View style={styles.noteCard}>
+          <Text style={styles.noteTitle}>How verification works</Text>
+          <Text style={styles.noteBody}>
+            AI analyzes your image to confirm it matches your goal. Screenshots, photos, app results — all valid. Takes under 30 seconds.
           </Text>
         </View>
 
         <View style={{ flex: 1 }} />
 
+        {/* Submit */}
         <TouchableOpacity
           style={[styles.submitBtn, (!image || submitting) && styles.submitBtnDisabled]}
           onPress={handleSubmit}
           disabled={!image || submitting}
-          activeOpacity={0.8}
+          activeOpacity={0.85}
         >
-          <Text style={styles.submitBtnText}>
-            {submitting ? '🤖 AI is verifying...' : '🔥 Submit for Verification'}
-          </Text>
+          {submitting ? (
+            <View style={styles.submittingRow}>
+              <ActivityIndicator color="#fff" size="small" />
+              <Text style={styles.submitBtnText}>AI is verifying...</Text>
+            </View>
+          ) : (
+            <Text style={styles.submitBtnText}>Submit for Verification</Text>
+          )}
         </TouchableOpacity>
+
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.bg },
-  content: { flex: 1, paddingHorizontal: 16, paddingTop: 20, paddingBottom: 24 },
-  back: { color: theme.colors.textMuted, fontSize: 14, marginBottom: 24 },
-  title: { fontSize: 24, fontWeight: '700', color: theme.colors.text, marginBottom: 8 },
-  subtitle: { fontSize: 14, color: theme.colors.textMuted, marginBottom: 24 },
-  previewContainer: { alignItems: 'center', marginBottom: 24 },
-  preview: { width: '100%', height: 250, borderRadius: 16, marginBottom: 12 },
-  removeBtn: { padding: 8 },
-  removeText: { color: theme.colors.accent, fontSize: 14 },
-  uploadOptions: { gap: 12, marginBottom: 24 },
-  uploadBtn: {
-    flexDirection: 'row', alignItems: 'center', gap: 12,
-    padding: 20, backgroundColor: theme.colors.card, borderRadius: 16,
-    borderWidth: 1, borderColor: theme.colors.border,
+  container: { flex: 1, backgroundColor: c.bg },
+  content: { flex: 1, paddingHorizontal: 20, paddingBottom: 24 },
+
+  topBar: { paddingVertical: 12 },
+  backText: { fontSize: 15, color: c.textSecondary },
+
+  title: { fontSize: 26, fontWeight: '700', color: c.text, letterSpacing: -0.8, marginBottom: 6 },
+  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, fontStyle: 'italic' },
+
+  // Upload area
+  uploadArea: {
+    backgroundColor: c.surface, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+    overflow: 'hidden', marginBottom: 16,
   },
-  uploadIcon: { fontSize: 28 },
-  uploadLabel: { fontSize: 16, color: theme.colors.text, fontWeight: '500' },
-  infoBox: {
-    backgroundColor: theme.colors.card, borderRadius: 14, padding: 16,
-    borderWidth: 1, borderColor: theme.colors.border,
+  uploadOption: {
+    flexDirection: 'row', alignItems: 'center', gap: 14, padding: 20,
   },
-  infoTitle: { fontSize: 13, fontWeight: '600', color: theme.colors.text, marginBottom: 6 },
-  infoText: { fontSize: 12, color: theme.colors.textMuted, lineHeight: 18 },
+  uploadOptionIcon: { fontSize: 24 },
+  uploadOptionText: { fontSize: 16, fontWeight: '500', color: c.text },
+  uploadDivider: { height: 1, backgroundColor: c.border },
+
+  // Preview
+  previewContainer: { marginBottom: 16, gap: 10 },
+  preview: { width: '100%', height: 240, borderRadius: 16 },
+  removeBtn: { alignSelf: 'flex-end' },
+  removeText: { fontSize: 13, color: c.accent },
+
+  // Note card
+  noteCard: {
+    backgroundColor: c.surface, borderRadius: 12, padding: 16,
+    borderWidth: 1, borderColor: c.border, gap: 6,
+  },
+  noteTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
+  noteBody: { fontSize: 13, color: c.textTertiary, lineHeight: 18 },
+
+  // Submit
   submitBtn: {
-    padding: 16, backgroundColor: theme.colors.accent, borderRadius: 14, alignItems: 'center',
-    shadowColor: theme.colors.accent, shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.3, shadowRadius: 12,
+    backgroundColor: c.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center',
   },
-  submitBtnDisabled: { backgroundColor: theme.colors.border, shadowOpacity: 0 },
-  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  submitBtnDisabled: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
+  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  submittingRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
+
+  // Result
+  resultContainer: {
+    flex: 1, justifyContent: 'center', alignItems: 'center',
+    paddingHorizontal: 32, gap: 14,
+  },
+  resultEmoji: { fontSize: 56 },
+  resultTitle: { fontSize: 26, fontWeight: '700', color: c.text, letterSpacing: -0.6 },
+  resultBody: { fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },
+  refundBadge: {
+    backgroundColor: c.successSoft, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10,
+    borderWidth: 1, borderColor: 'rgba(52,199,89,0.2)',
+  },
+  refundText: { fontSize: 14, color: c.success, fontWeight: '500' },
+  doneBtn: {
+    backgroundColor: c.accent, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40,
+    marginTop: 8,
+  },
+  doneBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
 });

@@ -1,23 +1,55 @@
 export const theme = {
   colors: {
-    bg: '#0A0A0F',
-    card: '#12121A',
-    cardHover: '#1A1A25',
-    accent: '#FF3366',
-    accentDim: 'rgba(255, 51, 102, 0.2)',
-    success: '#00E676',
-    successDim: 'rgba(0, 230, 118, 0.2)',
-    warning: '#FFB300',
-    warningDim: 'rgba(255, 179, 0, 0.2)',
-    text: '#F0F0F5',
-    textMuted: '#8888AA',
-    textDim: '#555570',
-    border: '#2A2A3A',
-    inputBg: '#0E0E16',
+    // Backgrounds
+    bg: '#080809',
+    surface: '#0F0F12',
+    card: '#141418',
+    cardHover: '#1A1A20',
+    overlay: '#1E1E25',
+
+    // Accents
+    accent: '#FF2D55',
+    accentSoft: 'rgba(255, 45, 85, 0.12)',
+    accentBorder: 'rgba(255, 45, 85, 0.25)',
+
+    // Status
+    success: '#34C759',
+    successSoft: 'rgba(52, 199, 89, 0.12)',
+    warning: '#FF9F0A',
+    warningSoft: 'rgba(255, 159, 10, 0.12)',
+    danger: '#FF3B30',
+
+    // Text
+    text: '#F2F2F7',
+    textSecondary: '#AEAEB2',
+    textTertiary: '#636366',
+    textDisabled: '#3A3A3C',
+
+    // Borders
+    border: 'rgba(255, 255, 255, 0.07)',
+    borderMed: 'rgba(255, 255, 255, 0.12)',
+    borderStrong: 'rgba(255, 255, 255, 0.18)',
   },
-  spacing: { xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48 },
-  borderRadius: { sm: 8, md: 12, lg: 16, xl: 20, full: 999 },
-  fontSize: { xs: 11, sm: 13, md: 15, lg: 18, xl: 24, xxl: 32, hero: 48 },
+
+  // Typography scale
+  text: {
+    hero: { fontSize: 40, fontWeight: '700', letterSpacing: -1.5, color: '#F2F2F7' },
+    h1: { fontSize: 28, fontWeight: '700', letterSpacing: -0.8, color: '#F2F2F7' },
+    h2: { fontSize: 22, fontWeight: '600', letterSpacing: -0.4, color: '#F2F2F7' },
+    h3: { fontSize: 17, fontWeight: '600', letterSpacing: -0.2, color: '#F2F2F7' },
+    body: { fontSize: 15, fontWeight: '400', lineHeight: 22, color: '#AEAEB2' },
+    small: { fontSize: 13, fontWeight: '400', lineHeight: 18, color: '#636366' },
+    label: { fontSize: 11, fontWeight: '600', letterSpacing: 0.6, color: '#636366' },
+    mono: { fontSize: 13, fontFamily: 'monospace', color: '#AEAEB2' },
+  },
+
+  spacing: {
+    xs: 4, sm: 8, md: 16, lg: 24, xl: 32, xxl: 48,
+  },
+
+  radius: {
+    sm: 8, md: 12, lg: 16, xl: 20, full: 999,
+  },
 };
 
 export const CATEGORIES = [
@@ -33,123 +65,27 @@ export const CATEGORIES = [
 
 export const STAKE_OPTIONS = [5, 10, 25, 50];
 
-// ============================================
-// CHARITY CATEGORIES
-// User picks a category, we randomly match
-// them with a verified charity from the list.
-// All charities live in cause-based buckets.
-// ============================================
 export const CHARITY_CATEGORIES = [
-  {
-    id: 'humanitarian',
-    name: 'Humanitarian Aid',
-    icon: '🌍',
-    description: 'Doctors Without Borders, Red Cross, UNICEF, Islamic Relief',
-    charities: [
-      { id: 'doctors_without_borders', name: 'Doctors Without Borders' },
-      { id: 'red_cross', name: 'American Red Cross' },
-      { id: 'unicef', name: 'UNICEF' },
-      { id: 'wfp', name: 'World Food Programme' },
-      { id: 'direct_relief', name: 'Direct Relief' },
-      { id: 'islamic_relief', name: 'Islamic Relief USA' },
-      { id: 'helping_hand', name: 'Helping Hand for Relief & Development' },
-    ],
-  },
-  {
-    id: 'poverty',
-    name: 'Poverty Relief',
-    icon: '🤲',
-    description: 'GiveDirectly, Oxfam, Zakat Foundation, Penny Appeal',
-    charities: [
-      { id: 'give_directly', name: 'GiveDirectly' },
-      { id: 'oxfam', name: 'Oxfam America' },
-      { id: 'heifer', name: 'Heifer International' },
-      { id: 'zakat_foundation', name: 'Zakat Foundation of America' },
-      { id: 'penny_appeal', name: 'Penny Appeal USA' },
-      { id: 'launchgood', name: 'LaunchGood' },
-    ],
-  },
-  {
-    id: 'education',
-    name: 'Education',
-    icon: '📚',
-    description: 'Room to Read, Khan Academy, DonorsChoose',
-    charities: [
-      { id: 'room_to_read', name: 'Room to Read' },
-      { id: 'khan_academy', name: 'Khan Academy' },
-      { id: 'donors_choose', name: 'DonorsChoose' },
-    ],
-  },
-  {
-    id: 'health_medical',
-    name: 'Health & Medical',
-    icon: '❤️',
-    description: 'St. Jude, American Cancer Society, NAMI',
-    charities: [
-      { id: 'st_jude', name: "St. Jude Children's Research Hospital" },
-      { id: 'acs', name: 'American Cancer Society' },
-      { id: 'nami', name: 'NAMI (Mental Health)' },
-    ],
-  },
-  {
-    id: 'environment',
-    name: 'Environment',
-    icon: '🌱',
-    description: 'WWF, The Nature Conservancy, Ocean Conservancy',
-    charities: [
-      { id: 'wwf', name: 'World Wildlife Fund' },
-      { id: 'nature_conservancy', name: 'The Nature Conservancy' },
-      { id: 'ocean_conservancy', name: 'Ocean Conservancy' },
-    ],
-  },
-  {
-    id: 'animals',
-    name: 'Animal Welfare',
-    icon: '🐾',
-    description: 'ASPCA, Best Friends Animal Society',
-    charities: [
-      { id: 'aspca', name: 'ASPCA' },
-      { id: 'best_friends', name: 'Best Friends Animal Society' },
-    ],
-  },
-  {
-    id: 'any',
-    name: 'Surprise Me',
-    icon: '🎲',
-    description: 'Random charity from any category above',
-    charities: [],
-  },
-  {
-    id: 'custom',
-    name: 'Choose Your Own',
-    icon: '✏️',
-    description: "Name a specific charity. We'll try to match it — if we can't verify it, we'll cancel the stake and let you pick another.",
-    charities: [],
-  },
+  { id: 'humanitarian', name: 'Humanitarian Aid', icon: '🌍', orgs: ['Doctors Without Borders', 'Red Cross', 'UNICEF', 'Islamic Relief USA'] },
+  { id: 'poverty', name: 'Poverty Relief', icon: '🤲', orgs: ['GiveDirectly', 'Oxfam', 'Zakat Foundation', 'Penny Appeal'] },
+  { id: 'education', name: 'Education', icon: '📖', orgs: ['Room to Read', 'Khan Academy', 'DonorsChoose'] },
+  { id: 'health', name: 'Health & Medical', icon: '🏥', orgs: ['St. Jude', 'ACS', 'NAMI'] },
+  { id: 'environment', name: 'Environment', icon: '🌱', orgs: ['WWF', 'Nature Conservancy'] },
+  { id: 'animals', name: 'Animals', icon: '🐾', orgs: ['ASPCA', 'Best Friends'] },
+  { id: 'surprise', name: 'Surprise Me', icon: '✨', orgs: [] },
 ];
 
-// Pick a random charity from a category
-export const pickRandomCharity = (categoryId) => {
-  const cat = CHARITY_CATEGORIES.find((c) => c.id === categoryId);
-  if (!cat) return null;
+export const getCategoryEmoji = (catId) =>
+  CATEGORIES.find((c) => c.id === catId)?.emoji || '⚡';
 
-  if (categoryId === 'any') {
-    const allCharities = CHARITY_CATEGORIES
-      .filter((c) => c.id !== 'any' && c.id !== 'custom')
-      .flatMap((c) => c.charities);
-    return allCharities[Math.floor(Math.random() * allCharities.length)];
-  }
-
-  if (categoryId === 'custom') return null;
-  return cat.charities[Math.floor(Math.random() * cat.charities.length)];
+export const getStatusColor = (status, colors) => {
+  if (status === 'completed') return colors.success;
+  if (status === 'failed') return colors.accent;
+  if (status === 'cancelled') return colors.textTertiary;
+  return colors.warning;
 };
 
-export const getCategoryEmoji = (catId) => {
-  return CATEGORIES.find((c) => c.id === catId)?.emoji || '⚡';
-};
-
-export const getStatusColor = (status) => {
-  if (status === 'completed') return theme.colors.success;
-  if (status === 'failed') return theme.colors.accent;
-  return theme.colors.warning;
+export const pickRandomCharity = () => {
+  const pool = CHARITY_CATEGORIES.filter(c => c.id !== 'surprise');
+  return pool[Math.floor(Math.random() * pool.length)];
 };

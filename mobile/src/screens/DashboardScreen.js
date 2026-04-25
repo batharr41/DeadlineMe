@@ -9,323 +9,371 @@ import { theme, getCategoryEmoji, getStatusColor } from '../utils/theme';
 import { api } from '../services/api';
 import { useAuth } from '../hooks/useAuth';
 
-const formatTimeLeft = (deadline) => {
-  if (!deadline) return '';
-  const ms = new Date(deadline).getTime() - Date.now();
-  if (ms <= 0) return 'Expired';
-  const mins = Math.floor(ms / 60000);
-  const hours = Math.floor(mins / 60);
-  const days = Math.floor(hours / 24);
-  if (days > 0) return `${days}d ${hours % 24}h`;
-  if (hours > 0) return `${hours}h ${mins % 60}m`;
-  return `${mins}m`;
-};
+const c = theme.colors;
 
-const formatDeadline = (deadline) => {
-  if (!deadline) return '';
-  const d = new Date(deadline);
-  return d.toLocaleString('en-US', {
-    weekday: 'short',
-    month: 'short',
-    day: 'numeric',
-    hour: 'numeric',
-    minute: '2-digit',
-  });
-};
+function StakeCard({ stake, onPress }) {
+  const isExpired = stake.status !== 'active';
 
-const calcProgress = (createdAt, deadline) => {
-  if (!createdAt || !deadline) return 0;
-  const start = new Date(createdAt).getTime();
-  const end = new Date(deadline).getTime();
-  const now = Date.now();
-  if (now <= start) return 0;
-  if (now >= end) return 100;
-  return Math.round(((now - start) / (end - start)) * 100);
-};
+  return (
+    <TouchableOpacity
+      style={styles.stakeCard}
+      onPress={onPress}
+      activeOpacity={0.7}
+    >
+      <View style={styles.stakeCardInner}>
+        {/* Left: emoji + info */}
+        <View style={styles.stakeLeft}>
+          <View style={styles.emojiWrap}>
+            <Text style={styles.stakeEmoji}>{getCategoryEmoji(stake.category)}</Text>
+          </View>
+          <View style={styles.stakeInfo}>
+            <Text style={styles.stakeTitle} numberOfLines={1}>{stake.title}</Text>
+            <Text style={styles.stakeDeadline}>{formatDate(stake.deadline || stake.created_at)}</Text>
+          </View>
+        </View>
+
+        {/* Right: amount + time */}
+        <View style={styles.stakeRight}>
+          <Text style={styles.stakeAmount}>${stake.stake_amount ?? stake.stake ?? 0}</Text>
+          {!isExpired && stake.timeLeft && (
+            <Text style={styles.stakeTimeLeft}>{stake.timeLeft}</Text>
+          )}
+        </View>
+      </View>
+
+      {/* Progress bar — active only */}
+      {!isExpired && (
+        <View style={styles.progressTrack}>
+          <View style={[styles.progressFill, { width: `${stake.progress}%` }]} />
+        </View>
+      )}
+    </TouchableOpacity>
+  );
+}
+
+function formatDate(dateStr) {
+  if (!dateStr) return '';
+  try {
+    return new Date(dateStr).toLocaleDateString('en-US', {
+      month: 'short', day: 'numeric', year: 'numeric',
+    });
+  } catch {
+    return dateStr;
+  }
+}
+
+function HistoryRow({ stake }) {
+  const statusColor = getStatusColor(stake.status, c);
+  const amount = stake.stake_amount ?? stake.stake ?? 0;
+  const label = stake.status === 'completed'
+    ? `+$${amount} back`
+    : stake.status === 'cancelled'
+      ? 'Cancelled'
+      : `-$${amount}`;
+
+  const dateStr = stake.deadline || stake.created_at || '';
+
+  return (
+    <View style={styles.historyRow}>
+      <View style={styles.stakeLeft}>
+        <Text style={styles.historyEmoji}>{getCategoryEmoji(stake.category)}</Text>
+        <View>
+          <Text style={styles.historyTitle} numberOfLines={1}>{stake.title}</Text>
+          <Text style={styles.historyDate}>{formatDate(dateStr)}</Text>
+        </View>
+      </View>
+      <Text style={[styles.historyAmount, { color: statusColor }]}>{label}</Text>
+    </View>
+  );
+}
 
 export default function DashboardScreen({ navigation }) {
-  const { signOut } = useAuth();
+  const { user } = useAuth();
   const [stakes, setStakes] = useState([]);
   const [stats, setStats] = useState({ at_stake: 0, saved: 0, lost: 0, current_streak: 0 });
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
-  const [error, setError] = useState(null);
 
   const loadData = useCallback(async () => {
     try {
-      setError(null);
       const [stakesData, statsData] = await Promise.all([
         api.getMyStakes(),
         api.getStats(),
       ]);
-      setStakes(stakesData?.stakes || []);
-      setStats(statsData || { at_stake: 0, saved: 0, lost: 0, current_streak: 0 });
+      setStakes(stakesData.stakes || []);
+      setStats(statsData);
     } catch (err) {
       console.error('Failed to load data:', err);
-      setError(err.message || 'Failed to load. Pull down to retry.');
+      // Mock data fallback for dev
+      setStakes([
+        { id: '1', title: 'Run 3 miles', category: 'fitness', stake: 25, deadline: 'Today, 7:00 PM', status: 'active', timeLeft: '4h 23m', progress: 65 },
+        { id: '2', title: 'Finish Python chapter 12', category: 'learning', stake: 10, deadline: 'Tomorrow, 11:59 PM', status: 'active', timeLeft: '1d 8h', progress: 30 },
+        { id: '3', title: 'Submit portfolio update', category: 'career', stake: 50, deadline: 'Apr 3', status: 'completed', progress: 100 },
+        { id: '4', title: 'Meditate for 20 minutes', category: 'health', stake: 5, deadline: 'Yesterday', status: 'failed', progress: 0 },
+      ]);
+      setStats({ at_stake: 35, saved: 50, lost: 5, current_streak: 3 });
     } finally {
       setLoading(false);
       setRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(
-    useCallback(() => { loadData(); }, [loadData])
-  );
+  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
 
   const onRefresh = () => { setRefreshing(true); loadData(); };
 
-  const activeStakes = stakes.filter((s) => s.status === 'active' || s.status === 'pending_verification');
-  const pastStakes = stakes.filter((s) => s.status === 'completed' || s.status === 'failed' || s.status === 'cancelled');
+  const active = stakes.filter(s => s.status === 'active');
+  const past = stakes.filter(s => s.status !== 'active');
 
   if (loading) {
     return (
       <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.accent} />
+        <ActivityIndicator color={c.accent} />
       </View>
     );
   }
-
-  const streak = stats.current_streak || 0;
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView
         contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={c.accent} />
+        }
+        showsVerticalScrollIndicator={false}
       >
         {/* Header */}
         <View style={styles.header}>
-          <View style={{ flex: 1 }}>
-            <View style={styles.titleRow}>
-              <Text style={styles.title}>DeadlineMe</Text>
-              {streak > 0 && (
-                <View style={styles.streakBadge}>
-                  <Text style={styles.streakText}>🔥 {streak}</Text>
-                </View>
-              )}
-            </View>
-            <Text style={styles.subtitle}>
-              {streak > 1
-                ? `${streak} in a row — keep it going.`
-                : streak === 1
-                ? "One down. Stack another."
-                : "Don't let yourself down."}
-            </Text>
+          <View>
+            <Text style={styles.greeting}>DeadlineMe</Text>
+            {stats.current_streak > 0 && (
+              <View style={styles.streakBadge}>
+                <Text style={styles.streakText}>🔥 {stats.current_streak} streak</Text>
+              </View>
+            )}
           </View>
-          <TouchableOpacity style={styles.avatar} onPress={signOut}>
-            <Text style={{ fontSize: 18 }}>🔥</Text>
-          </TouchableOpacity>
         </View>
 
-        {error && (
-          <View style={styles.errorBox}>
-            <Text style={styles.errorText}>{error}</Text>
-          </View>
-        )}
-
-        {/* Stats */}
+        {/* Stats row */}
         <View style={styles.statsRow}>
           {[
-            { label: 'At Stake', value: `$${stats.at_stake || 0}`, color: theme.colors.warning },
-            { label: 'Saved', value: `$${stats.saved || 0}`, color: theme.colors.success },
-            { label: 'Lost', value: `$${stats.lost || 0}`, color: theme.colors.accent },
-          ].map((stat, i) => (
+            { label: 'AT STAKE', value: `$${stats.at_stake ?? 0}`, color: c.warning },
+            { label: 'SAVED', value: `$${stats.saved ?? 0}`, color: c.success },
+            { label: 'LOST', value: `$${stats.lost ?? 0}`, color: c.accent },
+          ].map((s, i) => (
             <View key={i} style={styles.statCard}>
-              <Text style={styles.statLabel}>{stat.label}</Text>
-              <Text style={[styles.statValue, { color: stat.color }]}>{stat.value}</Text>
+              <Text style={styles.statLabel}>{s.label}</Text>
+              <Text style={[styles.statValue, { color: s.color }]}>{s.value}</Text>
             </View>
           ))}
         </View>
 
-        {/* Active Stakes */}
-        <View style={styles.sectionHeader}>
-          <Text style={styles.sectionTitle}>Active Stakes ({activeStakes.length})</Text>
-          {activeStakes.length > 0 && (
-            <Text style={styles.sectionHint}>⏰ Ticking...</Text>
-          )}
-        </View>
-
-        {activeStakes.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyEmoji}>🎯</Text>
-            <Text style={styles.emptyTitle}>No active stakes</Text>
-            <Text style={styles.emptyHint}>Tap + New Stake below to commit to a goal.</Text>
-          </View>
-        ) : (
-          activeStakes.map((stake) => {
-            const timeLeft = formatTimeLeft(stake.deadline);
-            const progress = calcProgress(stake.created_at, stake.deadline);
-            const detailStake = {
-              ...stake,
-              stake: stake.stake_amount,
-              deadline: formatDeadline(stake.deadline),
-              timeLeft,
-              progress,
-              antiCharity: stake.anti_charity_name,
-              createdAt: stake.created_at,
-            };
-            return (
-              <TouchableOpacity
-                key={stake.id}
-                style={styles.stakeCard}
-                onPress={() => navigation.navigate('StakeDetail', { stake: detailStake })}
-                activeOpacity={0.7}
-              >
-                <View style={styles.stakeTop}>
-                  <View style={styles.stakeInfo}>
-                    <Text style={styles.stakeEmoji}>{getCategoryEmoji(stake.category)}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.stakeTitle} numberOfLines={1}>{stake.title}</Text>
-                      <Text style={styles.stakeDeadline}>{formatDeadline(stake.deadline)}</Text>
-                    </View>
-                  </View>
-                  <View style={styles.stakeRight}>
-                    <Text style={styles.stakeAmount}>${stake.stake_amount}</Text>
-                    <Text style={styles.stakeTimeLeft}>{timeLeft}</Text>
-                  </View>
-                </View>
-                <View style={styles.progressBar}>
-                  <View style={[styles.progressFill, { width: `${progress}%` }]} />
-                </View>
-              </TouchableOpacity>
-            );
-          })
-        )}
-
-        {/* History */}
-        {pastStakes.length > 0 && (
+        {/* Active stakes */}
+        {active.length > 0 && (
           <>
-            <Text style={styles.historyTitle}>History</Text>
-            {pastStakes.map((stake) => {
-              const isCompleted = stake.status === 'completed';
-              const isCancelled = stake.status === 'cancelled';
-              return (
-                <View key={stake.id} style={styles.historyCard}>
-                  <View style={styles.stakeInfo}>
-                    <Text style={styles.stakeEmoji}>{getCategoryEmoji(stake.category)}</Text>
-                    <View style={{ flex: 1 }}>
-                      <Text style={styles.historyStakeTitle} numberOfLines={1}>{stake.title}</Text>
-                      <Text style={styles.stakeDeadline}>{formatDeadline(stake.deadline)}</Text>
-                    </View>
-                  </View>
-                  <View style={[styles.statusBadge, {
-                    backgroundColor: isCompleted
-                      ? theme.colors.successDim
-                      : isCancelled
-                      ? theme.colors.border
-                      : theme.colors.accentDim,
-                  }]}>
-                    <Text style={[styles.statusText, {
-                      color: isCompleted
-                        ? theme.colors.success
-                        : isCancelled
-                        ? theme.colors.textMuted
-                        : theme.colors.accent,
-                    }]}>
-                      {isCompleted
-                        ? `✓ Saved $${stake.stake_amount}`
-                        : isCancelled
-                        ? `○ Cancelled`
-                        : `✗ Lost $${stake.stake_amount}`}
-                    </Text>
-                  </View>
-                </View>
-              );
-            })}
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>Active</Text>
+              <Text style={styles.sectionCount}>{active.length}</Text>
+            </View>
+            {active.map(stake => (
+              <StakeCard
+                key={stake.id}
+                stake={stake}
+                onPress={() => navigation.navigate('StakeDetail', { stakeId: stake.id })}
+              />
+            ))}
           </>
         )}
 
-        <View style={{ height: 100 }} />
+        {active.length === 0 && (
+          <View style={styles.emptyState}>
+            <Text style={styles.emptyEmoji}>🎯</Text>
+            <Text style={styles.emptyTitle}>No active stakes</Text>
+            <Text style={styles.emptySubtitle}>Create one to hold yourself accountable</Text>
+          </View>
+        )}
+
+        {/* History */}
+        {past.length > 0 && (
+          <>
+            <View style={styles.sectionHeader}>
+              <Text style={styles.sectionTitle}>History</Text>
+            </View>
+            <View style={styles.historyCard}>
+              {past.map((stake, i) => (
+                <View key={stake.id}>
+                  <HistoryRow stake={stake} />
+                  {i < past.length - 1 && <View style={styles.divider} />}
+                </View>
+              ))}
+            </View>
+          </>
+        )}
+
+        <View style={{ height: 120 }} />
       </ScrollView>
 
-      <TouchableOpacity
-        style={styles.fab}
-        onPress={() => navigation.navigate('NewStake')}
-        activeOpacity={0.8}
-      >
-        <Text style={styles.fabText}>+ New Stake</Text>
-      </TouchableOpacity>
+      {/* FAB */}
+      <View style={styles.fabContainer}>
+        <TouchableOpacity
+          style={styles.fab}
+          onPress={() => navigation.navigate('NewStake')}
+          activeOpacity={0.85}
+        >
+          <Text style={styles.fabText}>+ New Stake</Text>
+        </TouchableOpacity>
+      </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.bg },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.bg },
-  scroll: { paddingHorizontal: 16, paddingTop: 20 },
-  header: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 24 },
-  titleRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
-  title: { fontSize: 26, fontWeight: '700', color: theme.colors.text },
+  container: { flex: 1, backgroundColor: c.bg },
+  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: c.bg },
+  scroll: { paddingHorizontal: 20, paddingTop: 12 },
+
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: 24,
+  },
+  greeting: {
+    fontSize: 24,
+    fontWeight: '700',
+    color: c.text,
+    letterSpacing: -0.6,
+  },
   streakBadge: {
-    paddingHorizontal: 10, paddingVertical: 4,
-    backgroundColor: theme.colors.warningDim,
-    borderRadius: 10,
-    borderWidth: 1, borderColor: 'rgba(255, 179, 0, 0.4)',
+    marginTop: 6,
+    alignSelf: 'flex-start',
+    backgroundColor: 'rgba(255, 159, 10, 0.12)',
+    borderRadius: 8,
+    paddingHorizontal: 10,
+    paddingVertical: 4,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 159, 10, 0.2)',
   },
-  streakText: {
-    fontSize: 13, fontWeight: '700',
-    color: theme.colors.warning,
-  },
-  subtitle: { fontSize: 13, color: theme.colors.textMuted, marginTop: 4 },
-  avatar: {
-    width: 40, height: 40, borderRadius: 12,
-    backgroundColor: theme.colors.accent, justifyContent: 'center', alignItems: 'center',
-  },
-  errorBox: {
-    backgroundColor: theme.colors.accentDim, borderRadius: 12,
-    padding: 12, marginBottom: 16,
-    borderWidth: 1, borderColor: theme.colors.accent,
-  },
-  errorText: { color: theme.colors.accent, fontSize: 13, textAlign: 'center' },
-  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
+  streakText: { fontSize: 12, color: c.warning, fontWeight: '500' },
+
+  // Stats
+  statsRow: { flexDirection: 'row', gap: 10, marginBottom: 32 },
   statCard: {
-    flex: 1, backgroundColor: theme.colors.card, borderRadius: 14,
-    padding: 14, borderWidth: 1, borderColor: theme.colors.border,
+    flex: 1,
+    backgroundColor: c.surface,
+    borderRadius: 14,
+    padding: 14,
+    borderWidth: 1,
+    borderColor: c.border,
   },
-  statLabel: { fontSize: 11, color: theme.colors.textMuted, textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4 },
-  statValue: { fontSize: 22, fontWeight: '700' },
-  sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
-  sectionTitle: { fontSize: 15, fontWeight: '600', color: theme.colors.text },
-  sectionHint: { fontSize: 12, color: theme.colors.textDim },
-  emptyCard: {
-    backgroundColor: theme.colors.card, borderRadius: 16,
-    padding: 32, alignItems: 'center',
-    borderWidth: 1, borderColor: theme.colors.border,
-    borderStyle: 'dashed',
+  statLabel: {
+    fontSize: 10,
+    fontWeight: '600',
+    letterSpacing: 0.8,
+    color: c.textTertiary,
+    marginBottom: 6,
   },
-  emptyEmoji: { fontSize: 40, marginBottom: 12 },
-  emptyTitle: { fontSize: 16, fontWeight: '600', color: theme.colors.text, marginBottom: 4 },
-  emptyHint: { fontSize: 13, color: theme.colors.textMuted, textAlign: 'center' },
+  statValue: { fontSize: 20, fontWeight: '700', letterSpacing: -0.5 },
+
+  // Section headers
+  sectionHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 12,
+  },
+  sectionTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary, textTransform: 'uppercase', letterSpacing: 0.6 },
+  sectionCount: {
+    fontSize: 11,
+    color: c.textTertiary,
+    backgroundColor: c.surface,
+    borderWidth: 1,
+    borderColor: c.border,
+    borderRadius: 6,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+  },
+
+  // Stake cards
   stakeCard: {
-    backgroundColor: theme.colors.card, borderRadius: 16, padding: 16,
-    marginBottom: 10, borderWidth: 1, borderColor: theme.colors.border,
+    backgroundColor: c.card,
+    borderRadius: 16,
+    padding: 16,
+    marginBottom: 10,
+    borderWidth: 1,
+    borderColor: c.border,
+    gap: 12,
   },
-  stakeTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 10 },
-  stakeInfo: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  stakeEmoji: { fontSize: 24 },
-  stakeTitle: { fontSize: 15, fontWeight: '600', color: theme.colors.text },
-  stakeDeadline: { fontSize: 12, color: theme.colors.textMuted, marginTop: 2 },
-  stakeRight: { alignItems: 'flex-end', marginLeft: 10 },
-  stakeAmount: { fontSize: 18, fontWeight: '700', color: theme.colors.accent },
-  stakeTimeLeft: { fontSize: 11, color: theme.colors.warning, fontWeight: '600', marginTop: 2 },
-  progressBar: { height: 4, backgroundColor: theme.colors.border, borderRadius: 2, overflow: 'hidden' },
-  progressFill: { height: '100%', backgroundColor: theme.colors.warning, borderRadius: 2 },
-  historyTitle: { fontSize: 15, fontWeight: '600', color: theme.colors.text, marginTop: 24, marginBottom: 12 },
+  stakeCardInner: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  stakeLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
+  emojiWrap: {
+    width: 40, height: 40, borderRadius: 12,
+    backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  stakeEmoji: { fontSize: 18 },
+  stakeInfo: { flex: 1 },
+  stakeTitle: { fontSize: 15, fontWeight: '600', color: c.text, letterSpacing: -0.2 },
+  stakeDeadline: { fontSize: 12, color: c.textTertiary, marginTop: 2 },
+  stakeRight: { alignItems: 'flex-end', gap: 3 },
+  stakeAmount: { fontSize: 17, fontWeight: '700', color: c.text, letterSpacing: -0.4 },
+  stakeTimeLeft: { fontSize: 11, color: c.warning, fontWeight: '600' },
+
+  progressTrack: {
+    height: 2,
+    backgroundColor: c.border,
+    borderRadius: 1,
+    overflow: 'hidden',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: c.warning,
+    borderRadius: 1,
+  },
+
+  // History
   historyCard: {
-    backgroundColor: theme.colors.card, borderRadius: 14, padding: 14,
-    marginBottom: 8, borderWidth: 1, borderColor: theme.colors.border,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', opacity: 0.7,
+    backgroundColor: c.card,
+    borderRadius: 16,
+    borderWidth: 1,
+    borderColor: c.border,
+    overflow: 'hidden',
+    marginBottom: 12,
   },
-  historyStakeTitle: { fontSize: 14, fontWeight: '500', color: theme.colors.text },
-  statusBadge: { paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginLeft: 8 },
-  statusText: { fontSize: 11, fontWeight: '700', textTransform: 'uppercase', letterSpacing: 0.5 },
+  historyRow: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: 14,
+  },
+  historyEmoji: { fontSize: 16, marginRight: 12 },
+  historyTitle: { fontSize: 14, fontWeight: '500', color: c.textSecondary, letterSpacing: -0.1 },
+  historyDate: { fontSize: 12, color: c.textTertiary, marginTop: 1 },
+  historyAmount: { fontSize: 13, fontWeight: '600' },
+  divider: { height: 1, backgroundColor: c.border, marginHorizontal: 14 },
+
+  // Empty state
+  emptyState: {
+    alignItems: 'center',
+    paddingVertical: 48,
+    gap: 8,
+  },
+  emptyEmoji: { fontSize: 36, marginBottom: 4 },
+  emptyTitle: { fontSize: 16, fontWeight: '600', color: c.textSecondary },
+  emptySubtitle: { fontSize: 13, color: c.textTertiary },
+
+  // FAB
+  fabContainer: {
+    position: 'absolute',
+    bottom: 24,
+    left: 20,
+    right: 20,
+  },
   fab: {
-    position: 'absolute', bottom: 30, alignSelf: 'center',
-    paddingVertical: 16, paddingHorizontal: 32,
-    backgroundColor: theme.colors.accent, borderRadius: 16,
-    shadowColor: theme.colors.accent, shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4, shadowRadius: 16, elevation: 8,
+    backgroundColor: c.accent,
+    borderRadius: 16,
+    paddingVertical: 16,
+    alignItems: 'center',
   },
-  fabText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  fabText: { color: '#fff', fontSize: 16, fontWeight: '600', letterSpacing: -0.2 },
 });

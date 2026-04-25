@@ -1,51 +1,8 @@
 from fastapi import APIRouter, Depends
-from datetime import datetime
 from app.core.deps import get_current_user, get_supabase
 from app.schemas.schemas import UserStats, UserUpdate
 
 router = APIRouter()
-
-
-def calculate_streak(stakes: list[dict]) -> int:
-    """
-    Calculate consecutive completed stakes, most recent first.
-
-    Rules:
-    - 'completed' stakes add to the streak
-    - 'failed' stakes or emergency exits break the streak
-    - Grace-window cancels (status='cancelled' AND verification_result contains 'grace')
-      are neutral — they don't affect the streak either way
-    - 'active' or 'pending_verification' stakes are neutral (no decision yet)
-
-    We walk through stakes in reverse-chronological order (newest first) and
-    count completions until we hit something that breaks the streak.
-    """
-    # Sort stakes by completion time (most recent first), falling back to creation time
-    decided = [
-        s for s in stakes
-        if s["status"] in ("completed", "failed", "cancelled")
-    ]
-    decided.sort(
-        key=lambda s: s.get("completed_at") or s.get("created_at") or "",
-        reverse=True,
-    )
-
-    streak = 0
-    for s in decided:
-        status = s["status"]
-        if status == "completed":
-            streak += 1
-        elif status == "cancelled":
-            # Free grace-window cancel → neutral, skip
-            result = (s.get("verification_result") or "").lower()
-            if "grace" in result:
-                continue
-            # Emergency exit (forfeit) → breaks streak
-            break
-        elif status == "failed":
-            break
-
-    return streak
 
 
 @router.get("/me")
@@ -99,28 +56,50 @@ async def update_profile(
     return result.data[0] if result.data else {"message": "Updated"}
 
 
-@router.get("/me/stats", response_model=UserStats)
+@router.get("/me/stats")
 async def get_stats(user: dict = Depends(get_current_user)):
-    """Get user accountability stats."""
+    """Get user accountability stats with category breakdown and recent history."""
     db = get_supabase()
 
     stakes_result = (
         db.table("stakes")
-        .select("stake_amount, status, created_at, completed_at, verification_result")
+        .select("id, title, category, stake_amount, status, created_at, deadline, completed_at")
         .eq("user_id", user["id"])
+        .order("created_at", desc=True)
         .execute()
     )
 
     all_stakes = stakes_result.data or []
 
-    active = [s for s in all_stakes if s["status"] in ("active", "pending_verification")]
+    active = [s for s in all_stakes if s["status"] == "active"]
     completed = [s for s in all_stakes if s["status"] == "completed"]
     failed = [s for s in all_stakes if s["status"] == "failed"]
+    decided = completed + failed
 
-    total_decided = len(completed) + len(failed)
-    success_rate = (len(completed) / total_decided * 100) if total_decided > 0 else 0
+    total_decided = len(decided)
+    success_rate = round(len(completed) / total_decided * 100, 1) if total_decided > 0 else 0
 
-    current_streak = calculate_streak(all_stakes)
+    # Category breakdown
+    categories = set(s["category"] for s in all_stakes if s["category"])
+    category_breakdown = []
+    for cat in categories:
+        cat_decided = [s for s in decided if s["category"] == cat]
+        cat_completed = [s for s in completed if s["category"] == cat]
+        if not cat_decided:
+            continue
+        category_breakdown.append({
+            "category": cat,
+            "completed": len(cat_completed),
+            "total": len(cat_decided),
+        })
+    category_breakdown.sort(key=lambda x: x["completed"] / x["total"], reverse=True)
+
+    # Recent history (last 10 non-active)
+    recent = [s for s in all_stakes if s["status"] != "active"][:10]
+
+    # Streak — from profile
+    profile = db.table("profiles").select("streak").eq("id", user["id"]).single().execute()
+    current_streak = profile.data.get("streak", 0) if profile.data else 0
 
     return {
         "at_stake": sum(s["stake_amount"] for s in active),
@@ -129,6 +108,8 @@ async def get_stats(user: dict = Depends(get_current_user)):
         "active_count": len(active),
         "completed_count": len(completed),
         "failed_count": len(failed),
-        "success_rate": round(success_rate, 1),
+        "success_rate": success_rate,
         "current_streak": current_streak,
+        "category_breakdown": category_breakdown,
+        "recent_history": recent,
     }

@@ -1,89 +1,124 @@
 import React, { useState, useCallback } from 'react';
 import {
-  View, Text, StyleSheet, ScrollView,
-  RefreshControl, ActivityIndicator,
+  View, Text, StyleSheet, ScrollView, ActivityIndicator,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { useFocusEffect } from '@react-navigation/native';
-import { theme, CATEGORIES, getCategoryEmoji } from '../utils/theme';
+import { theme, getCategoryEmoji } from '../utils/theme';
 import { api } from '../services/api';
 
+const c = theme.colors;
+
+function StatCard({ label, value, color }) {
+  return (
+    <View style={styles.statCard}>
+      <Text style={styles.statLabel}>{label}</Text>
+      <Text style={[styles.statValue, { color }]}>{value}</Text>
+    </View>
+  );
+}
+
+function CategoryRow({ item }) {
+  const pct = item.total > 0 ? Math.round((item.completed / item.total) * 100) : 0;
+  return (
+    <View style={styles.categoryRow}>
+      <View style={styles.categoryTop}>
+        <View style={styles.categoryLeft}>
+          <Text style={styles.categoryEmoji}>{getCategoryEmoji(item.category)}</Text>
+          <View>
+            <Text style={styles.categoryName}>{item.category.charAt(0).toUpperCase() + item.category.slice(1)}</Text>
+            <Text style={styles.categorySubtext}>{item.completed} of {item.total} hit</Text>
+          </View>
+        </View>
+        <Text style={[styles.categoryPct, { color: pct >= 50 ? c.success : c.accent }]}>{pct}%</Text>
+      </View>
+      <View style={styles.progressTrack}>
+        <View style={[styles.progressFill, {
+          width: `${pct}%`,
+          backgroundColor: pct >= 50 ? c.success : c.accent,
+        }]} />
+      </View>
+    </View>
+  );
+}
+
+function RecentRow({ stake, isLast }) {
+  const amount = stake.stake_amount ?? stake.stake ?? 0;
+  const isWon = stake.status === 'completed';
+  const isCancelled = stake.status === 'cancelled';
+
+  return (
+    <View style={[styles.recentRow, !isLast && styles.recentRowBorder]}>
+      <View style={styles.recentLeft}>
+        <View style={[
+          styles.recentDot,
+          { backgroundColor: isWon ? c.success : isCancelled ? c.surface : c.accent }
+        ]}>
+          <Text style={styles.recentDotText}>
+            {isWon ? '✓' : isCancelled ? '–' : '✗'}
+          </Text>
+        </View>
+        <View>
+          <Text style={styles.recentTitle}>{stake.title}</Text>
+          <Text style={styles.recentSub}>{getCategoryEmoji(stake.category)}  ·  ${amount}</Text>
+        </View>
+      </View>
+      <Text style={[
+        styles.recentStatus,
+        { color: isWon ? c.success : isCancelled ? c.textTertiary : c.accent }
+      ]}>
+        {isWon ? 'WON' : isCancelled ? 'CANCELLED' : 'LOST'}
+      </Text>
+    </View>
+  );
+}
+
 export default function StatsScreen() {
-  const [stakes, setStakes] = useState([]);
   const [stats, setStats] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [refreshing, setRefreshing] = useState(false);
 
-  const loadData = useCallback(async () => {
+  const loadStats = useCallback(async () => {
     try {
-      const [stakesData, statsData] = await Promise.all([
-        api.getMyStakes(),
-        api.getStats(),
-      ]);
-      setStakes(stakesData?.stakes || []);
-      setStats(statsData);
+      const data = await api.getStats();
+      setStats(data);
     } catch (err) {
-      console.error('Failed to load stats:', err);
+      console.error(err);
     } finally {
       setLoading(false);
-      setRefreshing(false);
     }
   }, []);
 
-  useFocusEffect(useCallback(() => { loadData(); }, [loadData]));
-
-  const onRefresh = () => { setRefreshing(true); loadData(); };
+  useFocusEffect(useCallback(() => { loadStats(); }, [loadStats]));
 
   if (loading) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color={theme.colors.accent} />
+      <View style={styles.loading}>
+        <ActivityIndicator color={c.accent} />
       </View>
     );
   }
 
-  // Compute category breakdown from stakes
-  const categoryBreakdown = CATEGORIES.map((cat) => {
-    const catStakes = stakes.filter((s) => s.category === cat.id);
-    const decided = catStakes.filter((s) => s.status === 'completed' || s.status === 'failed');
-    const completed = catStakes.filter((s) => s.status === 'completed').length;
-    const total = decided.length;
-    const rate = total > 0 ? Math.round((completed / total) * 100) : null;
-    return { ...cat, completed, total, rate };
-  }).filter((c) => c.total > 0);
-
-  // Sort: highest success rate first, then by total count
-  categoryBreakdown.sort((a, b) => (b.rate || 0) - (a.rate || 0) || b.total - a.total);
-
-  const recentDecided = stakes
-    .filter((s) => s.status === 'completed' || s.status === 'failed' || s.status === 'cancelled')
-    .slice(0, 10);
-
-  const streak = stats?.current_streak || 0;
-  const successRate = stats?.success_rate || 0;
-  const totalDecided = (stats?.completed_count || 0) + (stats?.failed_count || 0);
+  const successRate = stats?.success_rate ?? 0;
+  const categoryBreakdown = stats?.category_breakdown ?? [];
+  const recentHistory = stats?.recent_history ?? [];
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView
-        contentContainerStyle={styles.scroll}
-        refreshControl={<RefreshControl refreshing={refreshing} onRefresh={onRefresh} tintColor={theme.colors.accent} />}
-      >
-        <Text style={styles.title}>Stats</Text>
+      <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        {/* Hero: streak */}
-        <View style={styles.heroCard}>
-          <Text style={styles.heroLabel}>Current Streak</Text>
-          <View style={styles.heroRow}>
-            <Text style={styles.heroNumber}>{streak}</Text>
-            <Text style={styles.heroEmoji}>🔥</Text>
+        <Text style={styles.pageTitle}>Stats</Text>
+
+        {/* Streak hero */}
+        <View style={styles.streakCard}>
+          <Text style={styles.streakLabel}>CURRENT STREAK</Text>
+          <View style={styles.streakRow}>
+            <Text style={styles.streakNumber}>{stats?.current_streak ?? 0}</Text>
+            <Text style={styles.streakFire}>🔥</Text>
           </View>
-          <Text style={styles.heroHint}>
-            {streak === 0
-              ? 'Complete your next stake to start a streak.'
-              : streak === 1
-              ? 'One down. Keep it rolling.'
-              : `${streak} completed stakes in a row.`}
+          <Text style={styles.streakSubtext}>
+            {(stats?.current_streak ?? 0) === 0
+              ? 'Complete your next stake to start a streak'
+              : `${stats.current_streak} consecutive ${stats.current_streak === 1 ? 'stake' : 'stakes'} completed`}
           </Text>
         </View>
 
@@ -91,222 +126,135 @@ export default function StatsScreen() {
         <View style={styles.rateCard}>
           <View style={styles.rateHeader}>
             <Text style={styles.rateLabel}>Success Rate</Text>
-            <Text style={styles.ratePct}>{successRate}%</Text>
+            <Text style={[styles.rateValue, { color: successRate >= 50 ? c.success : c.accent }]}>
+              {successRate}%
+            </Text>
           </View>
-          <View style={styles.rateBar}>
-            <View style={[styles.rateFill, { width: `${successRate}%` }]} />
+          <View style={styles.progressTrack}>
+            <View style={[styles.progressFill, {
+              width: `${successRate}%`,
+              backgroundColor: successRate >= 50 ? c.success : c.accent,
+            }]} />
           </View>
-          <Text style={styles.rateSub}>
-            {totalDecided === 0
-              ? 'No completed stakes yet.'
-              : `${stats.completed_count} of ${totalDecided} stakes hit.`}
+          <Text style={styles.rateSubtext}>
+            {stats?.completed_count ?? 0} of {(stats?.completed_count ?? 0) + (stats?.failed_count ?? 0)} stakes hit
           </Text>
         </View>
 
-        {/* Money summary */}
-        <View style={styles.moneyRow}>
-          <View style={styles.moneyCard}>
-            <Text style={styles.moneyLabel}>Saved</Text>
-            <Text style={[styles.moneyValue, { color: theme.colors.success }]}>
-              ${stats?.saved || 0}
-            </Text>
-          </View>
-          <View style={styles.moneyCard}>
-            <Text style={styles.moneyLabel}>Lost</Text>
-            <Text style={[styles.moneyValue, { color: theme.colors.accent }]}>
-              ${stats?.lost || 0}
-            </Text>
-          </View>
-          <View style={styles.moneyCard}>
-            <Text style={styles.moneyLabel}>At Stake</Text>
-            <Text style={[styles.moneyValue, { color: theme.colors.warning }]}>
-              ${stats?.at_stake || 0}
-            </Text>
-          </View>
+        {/* Money grid */}
+        <View style={styles.moneyGrid}>
+          <StatCard label="SAVED" value={`$${stats?.saved ?? 0}`} color={c.success} />
+          <StatCard label="LOST" value={`$${stats?.lost ?? 0}`} color={c.accent} />
+          <StatCard label="AT STAKE" value={`$${stats?.at_stake ?? 0}`} color={c.warning} />
         </View>
 
         {/* Category breakdown */}
-        <Text style={styles.sectionTitle}>By Category</Text>
-        {categoryBreakdown.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>
-              Complete some stakes to see which categories you win most.
-            </Text>
-          </View>
-        ) : (
-          categoryBreakdown.map((cat) => (
-            <View key={cat.id} style={styles.catCard}>
-              <View style={styles.catRow}>
-                <View style={styles.catLeft}>
-                  <Text style={styles.catEmoji}>{cat.emoji}</Text>
-                  <View>
-                    <Text style={styles.catLabel}>{cat.label}</Text>
-                    <Text style={styles.catSub}>{cat.completed} of {cat.total} hit</Text>
-                  </View>
+        {categoryBreakdown.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>By Category</Text>
+            <View style={styles.categoryCard}>
+              {categoryBreakdown.map((item, i) => (
+                <View key={item.category}>
+                  <CategoryRow item={item} />
+                  {i < categoryBreakdown.length - 1 && <View style={styles.divider} />}
                 </View>
-                <Text style={[
-                  styles.catRate,
-                  {
-                    color:
-                      cat.rate >= 75 ? theme.colors.success
-                      : cat.rate >= 40 ? theme.colors.warning
-                      : theme.colors.accent,
-                  },
-                ]}>
-                  {cat.rate}%
-                </Text>
-              </View>
-              <View style={styles.catBar}>
-                <View style={[
-                  styles.catFill,
-                  {
-                    width: `${cat.rate}%`,
-                    backgroundColor:
-                      cat.rate >= 75 ? theme.colors.success
-                      : cat.rate >= 40 ? theme.colors.warning
-                      : theme.colors.accent,
-                  },
-                ]} />
-              </View>
+              ))}
             </View>
-          ))
+          </>
         )}
 
         {/* Recent history */}
-        <Text style={styles.sectionTitle}>Recent</Text>
-        {recentDecided.length === 0 ? (
-          <View style={styles.emptyCard}>
-            <Text style={styles.emptyText}>Your history will show up here.</Text>
-          </View>
-        ) : (
-          recentDecided.map((stake) => {
-            const isCompleted = stake.status === 'completed';
-            const isCancelled = stake.status === 'cancelled';
-            return (
-              <View key={stake.id} style={styles.recentCard}>
-                <View style={styles.recentLeft}>
-                  <Text style={styles.recentEmoji}>
-                    {isCompleted ? '✅' : isCancelled ? '○' : '❌'}
-                  </Text>
-                  <View style={{ flex: 1 }}>
-                    <Text style={styles.recentTitle} numberOfLines={1}>{stake.title}</Text>
-                    <Text style={styles.recentMeta}>
-                      {getCategoryEmoji(stake.category)} · ${stake.stake_amount}
-                    </Text>
-                  </View>
-                </View>
-                <Text style={[
-                  styles.recentStatus,
-                  {
-                    color: isCompleted
-                      ? theme.colors.success
-                      : isCancelled
-                      ? theme.colors.textMuted
-                      : theme.colors.accent,
-                  },
-                ]}>
-                  {isCompleted ? 'Won' : isCancelled ? 'Cancelled' : 'Lost'}
-                </Text>
-              </View>
-            );
-          })
+        {recentHistory.length > 0 && (
+          <>
+            <Text style={styles.sectionTitle}>Recent</Text>
+            <View style={styles.recentCard}>
+              {recentHistory.map((stake, i) => (
+                <RecentRow key={stake.id} stake={stake} isLast={i === recentHistory.length - 1} />
+              ))}
+            </View>
+          </>
         )}
 
-        <View style={{ height: 100 }} />
+        <View style={{ height: 32 }} />
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: theme.colors.bg },
-  loadingContainer: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.bg },
-  scroll: { paddingHorizontal: 16, paddingTop: 20 },
-  title: { fontSize: 26, fontWeight: '700', color: theme.colors.text, marginBottom: 20 },
+  container: { flex: 1, backgroundColor: c.bg },
+  loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: c.bg },
+  scroll: { paddingHorizontal: 20, paddingTop: 12 },
 
-  heroCard: {
-    backgroundColor: theme.colors.warningDim, borderRadius: 20,
-    padding: 24, marginBottom: 16,
-    borderWidth: 1, borderColor: 'rgba(255,179,0,0.4)',
+  pageTitle: {
+    fontSize: 28, fontWeight: '700', color: c.text,
+    letterSpacing: -0.8, marginBottom: 20,
   },
-  heroLabel: {
-    fontSize: 11, color: theme.colors.warning,
-    letterSpacing: 1.5, fontWeight: '700', marginBottom: 8,
-  },
-  heroRow: { flexDirection: 'row', alignItems: 'baseline', gap: 6 },
-  heroNumber: {
-    fontSize: 64, fontWeight: '800', color: theme.colors.warning,
-    lineHeight: 70,
-  },
-  heroEmoji: { fontSize: 40 },
-  heroHint: { fontSize: 13, color: theme.colors.textMuted, marginTop: 8 },
 
+  // Streak
+  streakCard: {
+    backgroundColor: c.surface, borderRadius: 16, padding: 20,
+    borderWidth: 1, borderColor: 'rgba(255, 159, 10, 0.2)', marginBottom: 12,
+  },
+  streakLabel: { fontSize: 11, fontWeight: '600', letterSpacing: 0.8, color: c.warning, marginBottom: 10 },
+  streakRow: { flexDirection: 'row', alignItems: 'center', gap: 10, marginBottom: 6 },
+  streakNumber: { fontSize: 48, fontWeight: '700', color: c.text, letterSpacing: -2 },
+  streakFire: { fontSize: 32 },
+  streakSubtext: { fontSize: 13, color: c.textTertiary },
+
+  // Success rate
   rateCard: {
-    backgroundColor: theme.colors.card, borderRadius: 16,
-    padding: 18, marginBottom: 16,
-    borderWidth: 1, borderColor: theme.colors.border,
+    backgroundColor: c.surface, borderRadius: 16, padding: 20,
+    borderWidth: 1, borderColor: c.border, marginBottom: 12, gap: 10,
   },
-  rateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'baseline', marginBottom: 10 },
-  rateLabel: { fontSize: 14, color: theme.colors.textMuted, fontWeight: '600' },
-  ratePct: { fontSize: 22, fontWeight: '700', color: theme.colors.success },
-  rateBar: {
-    height: 8, backgroundColor: theme.colors.border,
-    borderRadius: 4, overflow: 'hidden', marginBottom: 10,
-  },
-  rateFill: { height: '100%', backgroundColor: theme.colors.success, borderRadius: 4 },
-  rateSub: { fontSize: 12, color: theme.colors.textMuted },
+  rateHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  rateLabel: { fontSize: 15, fontWeight: '600', color: c.text },
+  rateValue: { fontSize: 22, fontWeight: '700', letterSpacing: -0.5 },
+  rateSubtext: { fontSize: 12, color: c.textTertiary },
 
-  moneyRow: { flexDirection: 'row', gap: 10, marginBottom: 24 },
-  moneyCard: {
-    flex: 1, backgroundColor: theme.colors.card, borderRadius: 14,
-    padding: 14, borderWidth: 1, borderColor: theme.colors.border,
-  },
-  moneyLabel: {
-    fontSize: 11, color: theme.colors.textMuted,
-    textTransform: 'uppercase', letterSpacing: 0.5, marginBottom: 4,
-  },
-  moneyValue: { fontSize: 20, fontWeight: '700' },
+  progressTrack: { height: 3, backgroundColor: c.border, borderRadius: 2, overflow: 'hidden' },
+  progressFill: { height: '100%', borderRadius: 2 },
 
+  // Money grid
+  moneyGrid: { flexDirection: 'row', gap: 8, marginBottom: 28 },
+  statCard: {
+    flex: 1, backgroundColor: c.surface, borderRadius: 14, padding: 14,
+    borderWidth: 1, borderColor: c.border,
+  },
+  statLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.8, color: c.textTertiary, marginBottom: 6 },
+  statValue: { fontSize: 18, fontWeight: '700', letterSpacing: -0.4 },
+
+  // Section title
   sectionTitle: {
-    fontSize: 15, fontWeight: '700', color: theme.colors.text,
-    marginBottom: 12, marginTop: 8,
+    fontSize: 13, fontWeight: '600', color: c.textSecondary,
+    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10,
   },
 
-  emptyCard: {
-    backgroundColor: theme.colors.card, borderRadius: 14,
-    padding: 20, marginBottom: 16,
-    borderWidth: 1, borderColor: theme.colors.border,
-    borderStyle: 'dashed',
+  // Category
+  categoryCard: {
+    backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+    overflow: 'hidden', marginBottom: 24,
   },
-  emptyText: { fontSize: 13, color: theme.colors.textMuted, textAlign: 'center' },
+  categoryRow: { padding: 16, gap: 10 },
+  categoryTop: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' },
+  categoryLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  categoryEmoji: { fontSize: 22 },
+  categoryName: { fontSize: 15, fontWeight: '600', color: c.text },
+  categorySubtext: { fontSize: 12, color: c.textTertiary, marginTop: 1 },
+  categoryPct: { fontSize: 16, fontWeight: '700' },
+  divider: { height: 1, backgroundColor: c.border, marginHorizontal: 16 },
 
-  catCard: {
-    backgroundColor: theme.colors.card, borderRadius: 14,
-    padding: 14, marginBottom: 8,
-    borderWidth: 1, borderColor: theme.colors.border,
-  },
-  catRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 10 },
-  catLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
-  catEmoji: { fontSize: 22 },
-  catLabel: { fontSize: 14, color: theme.colors.text, fontWeight: '600' },
-  catSub: { fontSize: 11, color: theme.colors.textMuted, marginTop: 2 },
-  catRate: { fontSize: 18, fontWeight: '700' },
-  catBar: { height: 6, backgroundColor: theme.colors.border, borderRadius: 3, overflow: 'hidden' },
-  catFill: { height: '100%', borderRadius: 3 },
-
+  // Recent
   recentCard: {
-    backgroundColor: theme.colors.card, borderRadius: 12,
-    padding: 12, marginBottom: 6,
-    borderWidth: 1, borderColor: theme.colors.border,
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
+    overflow: 'hidden',
   },
-  recentLeft: { flexDirection: 'row', alignItems: 'center', gap: 10, flex: 1 },
-  recentEmoji: { fontSize: 18 },
-  recentTitle: { fontSize: 14, color: theme.colors.text, fontWeight: '500' },
-  recentMeta: { fontSize: 11, color: theme.colors.textMuted, marginTop: 2 },
-  recentStatus: {
-    fontSize: 12, fontWeight: '700',
-    textTransform: 'uppercase', letterSpacing: 0.5,
-    marginLeft: 10,
-  },
+  recentRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14 },
+  recentRowBorder: { borderBottomWidth: 1, borderBottomColor: c.border },
+  recentLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  recentDot: { width: 28, height: 28, borderRadius: 8, alignItems: 'center', justifyContent: 'center' },
+  recentDotText: { fontSize: 12, fontWeight: '700', color: '#fff' },
+  recentTitle: { fontSize: 14, fontWeight: '500', color: c.text },
+  recentSub: { fontSize: 12, color: c.textTertiary, marginTop: 1 },
+  recentStatus: { fontSize: 11, fontWeight: '700', letterSpacing: 0.5 },
 });

@@ -1,8 +1,9 @@
 import React from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
+import { Ionicons } from '@expo/vector-icons';
 import { useAuth } from '../hooks/useAuth';
-import { ActivityIndicator, View, Text } from 'react-native';
+import { ActivityIndicator, View } from 'react-native';
 import { theme } from '../utils/theme';
 
 // Screens
@@ -19,15 +20,7 @@ import ProofScreen from '../screens/ProofScreen';
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
 
-// Simple emoji tab icon
-const TabIcon = ({ emoji, focused }) => (
-  <Text style={{
-    fontSize: focused ? 22 : 20,
-    opacity: focused ? 1 : 0.5,
-  }}>
-    {emoji}
-  </Text>
-);
+const c = theme.colors;
 
 function AuthStack() {
   return (
@@ -42,60 +35,43 @@ function AuthStack() {
 function MainTabs() {
   return (
     <Tab.Navigator
-      screenOptions={{
+      screenOptions={({ route }) => ({
         headerShown: false,
         tabBarStyle: {
-          backgroundColor: theme.colors.card,
-          borderTopColor: theme.colors.border,
+          backgroundColor: c.surface,
+          borderTopColor: c.border,
           borderTopWidth: 1,
-          height: 84,
+          paddingBottom: 8,
           paddingTop: 8,
-          paddingBottom: 24,
+          height: 60,
         },
-        tabBarActiveTintColor: theme.colors.accent,
-        tabBarInactiveTintColor: theme.colors.textDim,
+        tabBarActiveTintColor: c.accent,
+        tabBarInactiveTintColor: c.textTertiary,
         tabBarLabelStyle: {
           fontSize: 11,
-          fontWeight: '600',
+          fontWeight: '500',
+          marginTop: 2,
         },
-      }}
+        tabBarIcon: ({ focused, color }) => {
+          const icons = {
+            Home: focused ? 'home' : 'home-outline',
+            Stats: focused ? 'bar-chart' : 'bar-chart-outline',
+            Profile: focused ? 'person' : 'person-outline',
+          };
+          return <Ionicons name={icons[route.name]} size={22} color={color} />;
+        },
+      })}
     >
-      <Tab.Screen
-        name="Dashboard"
-        component={DashboardScreen}
-        options={{
-          tabBarLabel: 'Home',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="🏠" focused={focused} />,
-        }}
-      />
-      <Tab.Screen
-        name="Stats"
-        component={StatsScreen}
-        options={{
-          tabBarLabel: 'Stats',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="📊" focused={focused} />,
-        }}
-      />
-      <Tab.Screen
-        name="Profile"
-        component={ProfileScreen}
-        options={{
-          tabBarLabel: 'Profile',
-          tabBarIcon: ({ focused }) => <TabIcon emoji="👤" focused={focused} />,
-        }}
-      />
+      <Tab.Screen name="Home" component={DashboardScreen} />
+      <Tab.Screen name="Stats" component={StatsScreen} />
+      <Tab.Screen name="Profile" component={ProfileScreen} />
     </Tab.Navigator>
   );
 }
 
 function AppStack() {
   return (
-    <Stack.Navigator
-      screenOptions={{
-        headerShown: false,
-        contentStyle: { backgroundColor: theme.colors.bg },
-      }}
-    >
+    <Stack.Navigator screenOptions={{ headerShown: false }}>
       <Stack.Screen name="MainTabs" component={MainTabs} />
       <Stack.Screen
         name="NewStake"
@@ -117,8 +93,8 @@ export default function RootNavigator() {
 
   if (loading) {
     return (
-      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.bg }}>
-        <ActivityIndicator size="large" color={theme.colors.accent} />
+      <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: c.bg }}>
+        <ActivityIndicator color={c.accent} />
       </View>
     );
   }
