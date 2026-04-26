@@ -71,7 +71,7 @@ export default function ProofScreen({ route, navigation }) {
           )}
           <TouchableOpacity
             style={styles.doneBtn}
-            onPress={() => navigation.navigate('Dashboard')}
+            onPress={() => navigation.navigate('MainTabs')}
           >
             <Text style={styles.doneBtnText}>Back to Dashboard</Text>
           </TouchableOpacity>

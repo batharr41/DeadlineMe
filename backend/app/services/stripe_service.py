@@ -1,44 +1,44 @@
 import stripe
 from app.core.config import settings
+import logging
 
-# Only initialize Stripe if we have a real-looking key
-_STRIPE_CONFIGURED = (
-    settings.stripe_secret_key
-    and settings.stripe_secret_key.startswith("sk_")
-    and "..." not in settings.stripe_secret_key
-    and len(settings.stripe_secret_key) > 20
-)
+logger = logging.getLogger(__name__)
 
-if _STRIPE_CONFIGURED:
-    stripe.api_key = settings.stripe_secret_key
+stripe.api_key = settings.stripe_secret_key
 
 PLATFORM_FEE_PERCENT = 0.05  # 5%
 
+# Dev mode detection
+_STRIPE_CONFIGURED = (
+    settings.stripe_secret_key
+    and not settings.stripe_secret_key.startswith("sk_placeholder")
+    and len(settings.stripe_secret_key) > 20
+)
 
-def _is_dev_intent(payment_intent_id: str | None) -> bool:
-    return not payment_intent_id or payment_intent_id.startswith("pi_dev_")
+
+def _is_dev_intent(payment_intent_id: str) -> bool:
+    return payment_intent_id.startswith("pi_dev_")
 
 
 async def create_stake_payment(amount: int, user_id: str, user_email: str) -> dict:
     """
     Create a Stripe PaymentIntent with manual capture.
     Funds are authorized but not captured until the deadline resolves.
-
-    If Stripe isn't configured (dev mode), returns a placeholder so the rest
-    of the flow still works end-to-end.
     """
     if not _STRIPE_CONFIGURED:
+        logger.info(f"[DEV MODE] Fake payment intent for ${amount}")
         return {
-            "client_secret": f"dev_secret_{user_id[:8]}",
+            "client_secret": f"pi_dev_{user_id[:8]}_secret_fake",
             "payment_intent_id": f"pi_dev_{user_id[:8]}_{amount}",
             "amount": amount,
         }
 
     amount_cents = amount * 100
+
     intent = stripe.PaymentIntent.create(
         amount=amount_cents,
         currency="usd",
-        capture_method="manual",
+        capture_method="manual",  # Authorize only — don't charge yet
         metadata={
             "user_id": user_id,
             "user_email": user_email,
@@ -54,74 +54,84 @@ async def create_stake_payment(amount: int, user_id: str, user_email: str) -> di
     }
 
 
-async def capture_stake(payment_intent_id: str, amount: int | None = None) -> dict:
-    """Capture the authorized payment, optionally only a portion (dollars)."""
-    if not _STRIPE_CONFIGURED or _is_dev_intent(payment_intent_id):
-        return {"status": "captured_dev", "amount_captured": (amount or 0) * 100}
+async def capture_stake(payment_intent_id: str) -> dict:
+    """
+    Capture the authorized payment (user failed their deadline).
+    """
+    if _is_dev_intent(payment_intent_id):
+        logger.info(f"[DEV MODE] Fake capture for {payment_intent_id}")
+        return {"status": "succeeded", "amount_captured": 0}
 
-    if amount is not None:
-        intent = stripe.PaymentIntent.capture(
-            payment_intent_id,
-            amount_to_capture=amount * 100,
-        )
-    else:
+    try:
         intent = stripe.PaymentIntent.capture(payment_intent_id)
-
-    return {
-        "status": intent.status,
-        "amount_captured": intent.amount_received,
-    }
+        return {
+            "status": intent.status,
+            "amount_captured": intent.amount_received,
+        }
+    except stripe.error.StripeError as e:
+        logger.error(f"Stripe capture error: {e}")
+        return {"status": "error", "message": str(e)}
 
 
 async def refund_stake(payment_intent_id: str) -> dict:
-    """Cancel or refund (user completed the goal or cancelled in grace window)."""
-    if not _STRIPE_CONFIGURED or _is_dev_intent(payment_intent_id):
-        return {"status": "cancelled_dev", "refunded": True}
+    """
+    Cancel or refund the payment (user completed their goal).
+    """
+    if _is_dev_intent(payment_intent_id):
+        logger.info(f"[DEV MODE] Fake refund for {payment_intent_id}")
+        return {"status": "cancelled", "refunded": True}
 
     try:
         intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+
         if intent.status == "requires_capture":
             stripe.PaymentIntent.cancel(payment_intent_id)
             return {"status": "cancelled", "refunded": True}
 
-        refund = stripe.Refund.create(payment_intent=payment_intent_id)
-        return {"status": "refunded", "refund_id": refund.id}
+        if intent.status == "succeeded":
+            refund = stripe.Refund.create(payment_intent=payment_intent_id)
+            return {"status": "refunded", "refund_id": refund.id}
+
+        # Already cancelled or in unexpected state
+        return {"status": intent.status, "refunded": False}
+
     except stripe.error.StripeError as e:
+        logger.error(f"Stripe refund error: {e}")
         return {"status": "error", "message": str(e)}
 
 
-async def cancel_stake_with_forfeit(
-    payment_intent_id: str,
-    full_amount: int,
-    forfeit_amount: int,
-) -> dict:
+async def partial_refund_stake(payment_intent_id: str, refund_percent: float) -> dict:
     """
-    Emergency exit: capture the forfeit portion, release the rest.
-    All amounts in dollars.
+    Partial refund for emergency exit (e.g. 50% back).
     """
-    if not _STRIPE_CONFIGURED or _is_dev_intent(payment_intent_id):
-        return {
-            "status": "partial_capture_dev",
-            "forfeited": forfeit_amount,
-            "refunded": full_amount - forfeit_amount,
-        }
+    if _is_dev_intent(payment_intent_id):
+        logger.info(f"[DEV MODE] Fake partial refund ({refund_percent*100}%) for {payment_intent_id}")
+        return {"status": "refunded", "refunded": True}
 
     try:
-        intent = stripe.PaymentIntent.capture(
-            payment_intent_id,
-            amount_to_capture=forfeit_amount * 100,
-        )
-        return {
-            "status": intent.status,
-            "forfeited": forfeit_amount,
-            "refunded": full_amount - forfeit_amount,
-        }
+        intent = stripe.PaymentIntent.retrieve(payment_intent_id)
+
+        if intent.status == "requires_capture":
+            # Not yet captured — capture first, then refund portion
+            captured = stripe.PaymentIntent.capture(payment_intent_id)
+            refund_amount = int(captured.amount_received * refund_percent)
+            refund = stripe.Refund.create(
+                payment_intent=payment_intent_id,
+                amount=refund_amount,
+            )
+            return {"status": "partial_refund", "refund_id": refund.id}
+
+        return {"status": intent.status, "refunded": False}
+
     except stripe.error.StripeError as e:
+        logger.error(f"Stripe partial refund error: {e}")
         return {"status": "error", "message": str(e)}
 
 
 async def process_failed_stake(payment_intent_id: str, anti_charity_id: str) -> dict:
-    """Capture full stake on deadline miss."""
+    """
+    Process a failed stake: capture funds for charity.
+    """
     capture_result = await capture_stake(payment_intent_id)
     return {
         "captured": True,

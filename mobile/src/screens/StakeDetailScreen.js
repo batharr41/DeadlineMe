@@ -50,7 +50,7 @@ export default function StakeDetailScreen({ route, navigation }) {
       await api.cancelStake(stake.id || stakeId, emergency);
       await cancelStakeReminders(stake.id || stakeId);
       setExitModal(false);
-      navigation.navigate('Dashboard');
+      navigation.navigate('MainTabs');
     } catch (err) {
       Alert.alert('Error', err.message);
     } finally {

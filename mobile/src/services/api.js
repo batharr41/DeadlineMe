@@ -56,6 +56,12 @@ class ApiService {
   }
 
   // Payments
+  async createPaymentSheet(stakeAmount) {
+    return this.request('POST', '/api/payments/create-payment-sheet', {
+      amount: stakeAmount,
+    });
+  }
+
   async createPaymentIntent(stakeAmount) {
     return this.request('POST', '/api/payments/create-intent', {
       amount: stakeAmount,

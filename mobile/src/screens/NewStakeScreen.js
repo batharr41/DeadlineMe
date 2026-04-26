@@ -7,12 +7,14 @@ import DateTimePicker from '@react-native-community/datetimepicker';
 import { theme, CATEGORIES, STAKE_OPTIONS, CHARITY_CATEGORIES, getCategoryEmoji } from '../utils/theme';
 import { api } from '../services/api';
 import { scheduleStakeReminders } from '../services/notifications';
+import { useStripe } from '@stripe/stripe-react-native';
 
 const c = theme.colors;
 
 const STEPS = ['Goal', 'Stake & Deadline', 'Charity', 'Confirm'];
 
 export default function NewStakeScreen({ navigation }) {
+  const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [step, setStep] = useState(0);
 
   // Step 0
@@ -47,6 +49,34 @@ export default function NewStakeScreen({ navigation }) {
   const handleCreate = async () => {
     setCreating(true);
     try {
+      // 1. Get payment sheet params from backend
+      const sheetParams = await api.createPaymentSheet(amount);
+
+      // 2. Initialize Stripe payment sheet
+      const { error: initError } = await initPaymentSheet({
+        merchantDisplayName: 'DeadlineMe',
+        customerId: sheetParams.customer,
+        customerEphemeralKeySecret: sheetParams.ephemeralKey,
+        paymentIntentClientSecret: sheetParams.paymentIntent,
+        allowsDelayedPaymentMethods: false,
+      });
+
+      if (initError) {
+        Alert.alert('Payment Error', initError.message);
+        return;
+      }
+
+      // 3. Present payment sheet to user
+      const { error: paymentError } = await presentPaymentSheet();
+
+      if (paymentError) {
+        if (paymentError.code !== 'Canceled') {
+          Alert.alert('Payment Failed', paymentError.message);
+        }
+        return;
+      }
+
+      // 4. Payment authorized — create stake in DB
       const result = await api.createStake({
         title: title.trim(),
         category,
@@ -54,7 +84,9 @@ export default function NewStakeScreen({ navigation }) {
         deadline: deadline.toISOString(),
         anti_charity_id: charityId,
         description: '',
+        payment_intent_id: sheetParams.payment_intent_id,
       });
+
       await scheduleStakeReminders(result.id || 'temp', title, deadline.toISOString());
       navigation.navigate('MainTabs');
     } catch (err) {
