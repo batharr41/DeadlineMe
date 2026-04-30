@@ -8,6 +8,55 @@ import { cancelStakeReminders } from '../services/notifications';
 
 const c = theme.colors;
 
+function SuccessState({ stake, result, onDone }) {
+  const amount = stake.stake_amount ?? stake.stake ?? 0;
+  return (
+    <View style={styles.resultContainer}>
+      <View style={styles.successIconWrap}>
+        <Text style={styles.resultEmoji}>✓</Text>
+      </View>
+      <Text style={styles.successTitle}>You kept your word.</Text>
+      <Text style={styles.successSubtitle}>{result.reasoning}</Text>
+
+      <View style={styles.refundCard}>
+        <Text style={styles.refundLabel}>REFUND INITIATED</Text>
+        <Text style={styles.refundAmount}>${amount}</Text>
+        <Text style={styles.refundSub}>Back to your card in 3–5 days</Text>
+      </View>
+
+      <Text style={styles.successMotivation}>
+        That's what follow-through looks like. 🔥
+      </Text>
+
+      <TouchableOpacity style={styles.doneBtn} onPress={onDone}>
+        <Text style={styles.doneBtnText}>Back to Dashboard</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
+function FailureState({ stake, result, onDone }) {
+  const amount = stake.stake_amount ?? stake.stake ?? 0;
+  const charity = stake.anti_charity_name || 'your chosen charity';
+  return (
+    <View style={styles.resultContainer}>
+      <View style={styles.failureIconWrap}>
+        <Text style={styles.resultEmoji}>✗</Text>
+      </View>
+      <Text style={styles.failureTitle}>Not verified.</Text>
+      <Text style={styles.failureSubtitle}>{result.reasoning}</Text>
+
+      <View style={styles.tryAgainCard}>
+        <Text style={styles.tryAgainText}>Upload clearer proof or your deadline will expire and ${amount} goes to {charity}.</Text>
+      </View>
+
+      <TouchableOpacity style={styles.retryBtn} onPress={onDone}>
+        <Text style={styles.retryBtnText}>Try Again</Text>
+      </TouchableOpacity>
+    </View>
+  );
+}
+
 export default function ProofScreen({ route, navigation }) {
   const { stake } = route.params;
   const [image, setImage] = useState(null);
@@ -16,9 +65,7 @@ export default function ProofScreen({ route, navigation }) {
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') {
-      return Alert.alert('Permission needed', 'Allow access to your photo library to upload proof.');
-    }
+    if (status !== 'granted') return Alert.alert('Permission needed', 'Allow access to your photo library.');
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -29,9 +76,7 @@ export default function ProofScreen({ route, navigation }) {
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') {
-      return Alert.alert('Permission needed', 'Allow camera access to take a proof photo.');
-    }
+    if (status !== 'granted') return Alert.alert('Permission needed', 'Allow camera access.');
     const res = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
     if (!res.canceled) setImage(res.assets[0].uri);
   };
@@ -44,9 +89,7 @@ export default function ProofScreen({ route, navigation }) {
       formData.append('proof', { uri: image, type: 'image/jpeg', name: 'proof.jpg' });
       const res = await api.submitProof(stake.id, formData);
       setResult(res);
-      if (res.verified) {
-        await cancelStakeReminders(stake.id);
-      }
+      if (res.verified) await cancelStakeReminders(stake.id);
     } catch (err) {
       Alert.alert('Upload failed', 'Something went wrong. Try again.');
     } finally {
@@ -54,28 +97,26 @@ export default function ProofScreen({ route, navigation }) {
     }
   };
 
-  // Result screen
-  if (result) {
+  if (result?.verified) {
     return (
       <SafeAreaView style={styles.container}>
-        <View style={styles.resultContainer}>
-          <Text style={styles.resultEmoji}>{result.verified ? '✅' : '🔄'}</Text>
-          <Text style={styles.resultTitle}>
-            {result.verified ? 'Proof Verified!' : 'Needs Review'}
-          </Text>
-          <Text style={styles.resultBody}>{result.reasoning}</Text>
-          {result.verified && (
-            <View style={styles.refundBadge}>
-              <Text style={styles.refundText}>Refund initiated · ${stake.stake_amount ?? stake.stake}</Text>
-            </View>
-          )}
-          <TouchableOpacity
-            style={styles.doneBtn}
-            onPress={() => navigation.navigate('MainTabs')}
-          >
-            <Text style={styles.doneBtnText}>Back to Dashboard</Text>
-          </TouchableOpacity>
-        </View>
+        <SuccessState
+          stake={stake}
+          result={result}
+          onDone={() => navigation.navigate('MainTabs')}
+        />
+      </SafeAreaView>
+    );
+  }
+
+  if (result && !result.verified) {
+    return (
+      <SafeAreaView style={styles.container}>
+        <FailureState
+          stake={stake}
+          result={result}
+          onDone={() => setResult(null)}
+        />
       </SafeAreaView>
     );
   }
@@ -84,19 +125,15 @@ export default function ProofScreen({ route, navigation }) {
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
 
-        {/* Header */}
         <View style={styles.topBar}>
           <TouchableOpacity onPress={() => navigation.goBack()}>
             <Text style={styles.backText}>← Cancel</Text>
           </TouchableOpacity>
         </View>
 
-        <Text style={styles.title}>Upload Proof</Text>
-        <Text style={styles.subtitle} numberOfLines={2}>
-          "{stake.title}"
-        </Text>
+        <Text style={styles.title}>Prove It.</Text>
+        <Text style={styles.subtitle} numberOfLines={2}>"{stake.title}"</Text>
 
-        {/* Image area */}
         {image ? (
           <View style={styles.previewContainer}>
             <Image source={{ uri: image }} style={styles.preview} />
@@ -118,17 +155,15 @@ export default function ProofScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* AI note */}
         <View style={styles.noteCard}>
           <Text style={styles.noteTitle}>How verification works</Text>
           <Text style={styles.noteBody}>
-            AI analyzes your image to confirm it matches your goal. Screenshots, photos, app results — all valid. Takes under 30 seconds.
+            AI reviews your image against your goal. Screenshots, photos, results — all valid. Under 30 seconds.
           </Text>
         </View>
 
         <View style={{ flex: 1 }} />
 
-        {/* Submit */}
         <TouchableOpacity
           style={[styles.submitBtn, (!image || submitting) && styles.submitBtnDisabled]}
           onPress={handleSubmit}
@@ -138,10 +173,10 @@ export default function ProofScreen({ route, navigation }) {
           {submitting ? (
             <View style={styles.submittingRow}>
               <ActivityIndicator color="#fff" size="small" />
-              <Text style={styles.submitBtnText}>AI is verifying...</Text>
+              <Text style={styles.submitBtnText}>Verifying...</Text>
             </View>
           ) : (
-            <Text style={styles.submitBtnText}>Submit for Verification</Text>
+            <Text style={styles.submitBtnText}>Submit Proof</Text>
           )}
         </TouchableOpacity>
 
@@ -156,29 +191,23 @@ const styles = StyleSheet.create({
 
   topBar: { paddingVertical: 12 },
   backText: { fontSize: 15, color: c.textSecondary },
-
-  title: { fontSize: 26, fontWeight: '700', color: c.text, letterSpacing: -0.8, marginBottom: 6 },
+  title: { fontSize: 30, fontWeight: '700', color: c.text, letterSpacing: -1, marginBottom: 6 },
   subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, fontStyle: 'italic' },
 
-  // Upload area
   uploadArea: {
     backgroundColor: c.surface, borderRadius: 16, borderWidth: 1, borderColor: c.border,
     overflow: 'hidden', marginBottom: 16,
   },
-  uploadOption: {
-    flexDirection: 'row', alignItems: 'center', gap: 14, padding: 20,
-  },
+  uploadOption: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 20 },
   uploadOptionIcon: { fontSize: 24 },
   uploadOptionText: { fontSize: 16, fontWeight: '500', color: c.text },
   uploadDivider: { height: 1, backgroundColor: c.border },
 
-  // Preview
   previewContainer: { marginBottom: 16, gap: 10 },
   preview: { width: '100%', height: 240, borderRadius: 16 },
   removeBtn: { alignSelf: 'flex-end' },
   removeText: { fontSize: 13, color: c.accent },
 
-  // Note card
   noteCard: {
     backgroundColor: c.surface, borderRadius: 12, padding: 16,
     borderWidth: 1, borderColor: c.border, gap: 6,
@@ -186,30 +215,58 @@ const styles = StyleSheet.create({
   noteTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
   noteBody: { fontSize: 13, color: c.textTertiary, lineHeight: 18 },
 
-  // Submit
-  submitBtn: {
-    backgroundColor: c.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center',
-  },
+  submitBtn: { backgroundColor: c.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
   submitBtnDisabled: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
-  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
   submittingRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
 
-  // Result
+  // Success state
   resultContainer: {
     flex: 1, justifyContent: 'center', alignItems: 'center',
-    paddingHorizontal: 32, gap: 14,
+    paddingHorizontal: 28, gap: 16,
   },
-  resultEmoji: { fontSize: 56 },
-  resultTitle: { fontSize: 26, fontWeight: '700', color: c.text, letterSpacing: -0.6 },
-  resultBody: { fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },
-  refundBadge: {
-    backgroundColor: c.successSoft, borderRadius: 10, paddingHorizontal: 16, paddingVertical: 10,
-    borderWidth: 1, borderColor: 'rgba(52,199,89,0.2)',
+  successIconWrap: {
+    width: 80, height: 80, borderRadius: 24,
+    backgroundColor: 'rgba(52,199,89,0.15)',
+    borderWidth: 2, borderColor: 'rgba(52,199,89,0.3)',
+    alignItems: 'center', justifyContent: 'center',
   },
-  refundText: { fontSize: 14, color: c.success, fontWeight: '500' },
+  failureIconWrap: {
+    width: 80, height: 80, borderRadius: 24,
+    backgroundColor: c.accentSoft,
+    borderWidth: 2, borderColor: c.accentBorder,
+    alignItems: 'center', justifyContent: 'center',
+  },
+  resultEmoji: { fontSize: 36, fontWeight: '700', color: c.text },
+  successTitle: { fontSize: 28, fontWeight: '700', color: c.text, letterSpacing: -0.8, textAlign: 'center' },
+  successSubtitle: { fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },
+  failureTitle: { fontSize: 28, fontWeight: '700', color: c.text, letterSpacing: -0.8, textAlign: 'center' },
+  failureSubtitle: { fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },
+
+  refundCard: {
+    backgroundColor: 'rgba(52,199,89,0.08)', borderRadius: 16, padding: 20,
+    borderWidth: 1, borderColor: 'rgba(52,199,89,0.2)', alignItems: 'center', gap: 4, width: '100%',
+  },
+  refundLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1, color: c.success },
+  refundAmount: { fontSize: 40, fontWeight: '700', color: c.success, letterSpacing: -1 },
+  refundSub: { fontSize: 12, color: c.textTertiary },
+
+  successMotivation: { fontSize: 14, color: c.textTertiary, textAlign: 'center' },
+
+  tryAgainCard: {
+    backgroundColor: c.surface, borderRadius: 14, padding: 16,
+    borderWidth: 1, borderColor: c.border, width: '100%',
+  },
+  tryAgainText: { fontSize: 14, color: c.textSecondary, lineHeight: 20, textAlign: 'center' },
+
   doneBtn: {
-    backgroundColor: c.accent, borderRadius: 14, paddingVertical: 14, paddingHorizontal: 40,
-    marginTop: 8,
+    backgroundColor: c.accent, borderRadius: 14,
+    paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center',
   },
-  doneBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  doneBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  retryBtn: {
+    backgroundColor: c.surface, borderRadius: 14, borderWidth: 1, borderColor: c.border,
+    paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center',
+  },
+  retryBtnText: { color: c.text, fontSize: 16, fontWeight: '600' },
 });
