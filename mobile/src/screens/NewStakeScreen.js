@@ -4,32 +4,30 @@ import {
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import DateTimePicker from '@react-native-community/datetimepicker';
+import { useStripe } from '@stripe/stripe-react-native';
 import { theme, CATEGORIES, STAKE_OPTIONS, CHARITY_CATEGORIES, getCategoryEmoji } from '../utils/theme';
 import { api } from '../services/api';
 import { scheduleStakeReminders } from '../services/notifications';
-import { useStripe } from '@stripe/stripe-react-native';
 
 const c = theme.colors;
 
-const STEPS = ['Goal', 'Stake & Deadline', 'Charity', 'Confirm'];
+const STEPS = [
+  { id: 0, label: 'THE MISSION', title: 'STAKE YOUR CLAIM' },
+  { id: 1, label: 'THE TERMS', title: 'SET THE STAKES' },
+  { id: 2, label: 'THE CONSEQUENCE', title: 'CHOOSE YOUR CAUSE' },
+  { id: 3, label: 'REVIEW', title: 'LOCK IT IN' },
+];
 
 export default function NewStakeScreen({ navigation }) {
   const { initPaymentSheet, presentPaymentSheet } = useStripe();
   const [step, setStep] = useState(0);
-
-  // Step 0
   const [title, setTitle] = useState('');
   const [category, setCategory] = useState(null);
-
-  // Step 1
   const [stakeAmount, setStakeAmount] = useState('');
   const [selectedChip, setSelectedChip] = useState(null);
   const [deadline, setDeadline] = useState(new Date(Date.now() + 24 * 60 * 60 * 1000));
   const [showPicker, setShowPicker] = useState(false);
-
-  // Step 2
   const [charityId, setCharityId] = useState(null);
-
   const [creating, setCreating] = useState(false);
 
   const amount = selectedChip || parseInt(stakeAmount) || 0;
@@ -46,13 +44,14 @@ export default function NewStakeScreen({ navigation }) {
     else handleCreate();
   };
 
+  const formatDeadline = (d) => d.toLocaleDateString('en-US', {
+    weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit',
+  });
+
   const handleCreate = async () => {
     setCreating(true);
     try {
-      // 1. Get payment sheet params from backend
       const sheetParams = await api.createPaymentSheet(amount);
-
-      // 2. Initialize Stripe payment sheet
       const { error: initError } = await initPaymentSheet({
         merchantDisplayName: 'DeadlineMe',
         customerId: sheetParams.customer,
@@ -60,30 +59,17 @@ export default function NewStakeScreen({ navigation }) {
         paymentIntentClientSecret: sheetParams.paymentIntent,
         allowsDelayedPaymentMethods: false,
       });
+      if (initError) { Alert.alert('Payment Error', initError.message); return; }
 
-      if (initError) {
-        Alert.alert('Payment Error', initError.message);
-        return;
-      }
-
-      // 3. Present payment sheet to user
       const { error: paymentError } = await presentPaymentSheet();
-
       if (paymentError) {
-        if (paymentError.code !== 'Canceled') {
-          Alert.alert('Payment Failed', paymentError.message);
-        }
+        if (paymentError.code !== 'Canceled') Alert.alert('Payment Failed', paymentError.message);
         return;
       }
 
-      // 4. Payment authorized — create stake in DB
       const result = await api.createStake({
-        title: title.trim(),
-        category,
-        stake_amount: amount,
-        deadline: deadline.toISOString(),
-        anti_charity_id: charityId,
-        description: '',
+        title: title.trim(), category, stake_amount: amount,
+        deadline: deadline.toISOString(), anti_charity_id: charityId, description: '',
         payment_intent_id: sheetParams.payment_intent_id,
       });
 
@@ -96,22 +82,15 @@ export default function NewStakeScreen({ navigation }) {
     }
   };
 
-  const formatDeadline = (d) => {
-    const now = new Date();
-    const diff = d - now;
-    const days = Math.floor(diff / (1000 * 60 * 60 * 24));
-    const opts = { weekday: 'short', month: 'short', day: 'numeric', hour: 'numeric', minute: '2-digit' };
-    return d.toLocaleDateString('en-US', opts);
-  };
-
   const renderStep = () => {
     switch (step) {
       case 0:
         return (
           <View style={styles.stepContent}>
+            <Text style={styles.stepHint}>Vague goals lead to vague results. Be precise or fail.</Text>
             <TextInput
-              style={styles.goalInput}
-              placeholder="What's your goal?"
+              style={styles.missionInput}
+              placeholder="Be specific. 'Run 3 miles' beats..."
               placeholderTextColor={c.textDisabled}
               value={title}
               onChangeText={setTitle}
@@ -119,22 +98,26 @@ export default function NewStakeScreen({ navigation }) {
               multiline
               maxLength={200}
             />
-            <Text style={styles.hint}>Be specific. "Run 3 miles" beats "exercise more."</Text>
-
-            <Text style={styles.fieldLabel}>CATEGORY</Text>
+            <Text style={styles.fieldLabel}>CORE DOMAIN</Text>
             <View style={styles.categoryGrid}>
               {CATEGORIES.map((cat) => (
                 <TouchableOpacity
                   key={cat.id}
-                  style={[styles.categoryChip, category === cat.id && styles.categoryChipActive]}
+                  style={[styles.categoryBtn, category === cat.id && styles.categoryBtnActive]}
                   onPress={() => setCategory(cat.id)}
                 >
                   <Text style={styles.categoryEmoji}>{cat.emoji}</Text>
                   <Text style={[styles.categoryLabel, category === cat.id && styles.categoryLabelActive]}>
-                    {cat.label}
+                    {cat.label.toUpperCase()}
                   </Text>
                 </TouchableOpacity>
               ))}
+            </View>
+
+            <View style={styles.warningBox}>
+              <Text style={styles.warningText}>
+                "By defining this goal, you acknowledge that failure will result in the immediate forfeiture of your staked amount. Commitment is absolute."
+              </Text>
             </View>
           </View>
         );
@@ -142,7 +125,8 @@ export default function NewStakeScreen({ navigation }) {
       case 1:
         return (
           <View style={styles.stepContent}>
-            {/* Amount */}
+            <Text style={styles.stepHint}>Pick an amount that actually hurts to lose. That's the point.</Text>
+
             <Text style={styles.fieldLabel}>STAKE AMOUNT</Text>
             <View style={styles.amountContainer}>
               <Text style={styles.dollarSign}>$</Text>
@@ -167,17 +151,11 @@ export default function NewStakeScreen({ navigation }) {
                 </TouchableOpacity>
               ))}
             </View>
-            <Text style={styles.hint}>Pick an amount that actually hurts to lose.</Text>
 
-            {/* Deadline */}
-            <Text style={[styles.fieldLabel, { marginTop: 28 }]}>DEADLINE</Text>
-            <TouchableOpacity
-              style={styles.deadlineCard}
-              onPress={() => setShowPicker(true)}
-              activeOpacity={0.7}
-            >
+            <Text style={[styles.fieldLabel, { marginTop: 24 }]}>EXECUTION DEADLINE</Text>
+            <TouchableOpacity style={styles.deadlineCard} onPress={() => setShowPicker(true)}>
               <Text style={styles.deadlineText}>{formatDeadline(deadline)}</Text>
-              <Text style={styles.deadlineEdit}>Change →</Text>
+              <Text style={styles.deadlineChange}>CHANGE →</Text>
             </TouchableOpacity>
 
             {showPicker && (
@@ -194,7 +172,7 @@ export default function NewStakeScreen({ navigation }) {
             )}
             {Platform.OS === 'ios' && showPicker && (
               <TouchableOpacity style={styles.doneBtn} onPress={() => setShowPicker(false)}>
-                <Text style={styles.doneBtnText}>Done</Text>
+                <Text style={styles.doneBtnText}>CONFIRM</Text>
               </TouchableOpacity>
             )}
           </View>
@@ -203,7 +181,7 @@ export default function NewStakeScreen({ navigation }) {
       case 2:
         return (
           <View style={styles.stepContent}>
-            <Text style={styles.hint}>If you miss your deadline, your stake goes here. Pick a cause you genuinely care about — that's what makes this work.</Text>
+            <Text style={styles.stepHint}>If you fail, your stake goes here. Pick something you genuinely care about.</Text>
             <View style={styles.charityList}>
               {CHARITY_CATEGORIES.map((cat) => (
                 <TouchableOpacity
@@ -215,17 +193,17 @@ export default function NewStakeScreen({ navigation }) {
                     <Text style={styles.charityIcon}>{cat.icon}</Text>
                     <View>
                       <Text style={[styles.charityName, charityId === cat.id && styles.charityNameActive]}>
-                        {cat.name}
+                        {cat.name.toUpperCase()}
                       </Text>
                       {cat.orgs.length > 0 && (
                         <Text style={styles.charityOrgs} numberOfLines={1}>
-                          {cat.orgs.slice(0, 2).join(', ')}
+                          {cat.orgs.slice(0, 2).join(' · ')}
                         </Text>
                       )}
                     </View>
                   </View>
-                  <View style={[styles.radioOuter, charityId === cat.id && styles.radioOuterActive]}>
-                    {charityId === cat.id && <View style={styles.radioInner} />}
+                  <View style={[styles.radio, charityId === cat.id && styles.radioActive]}>
+                    {charityId === cat.id && <View style={styles.radioDot} />}
                   </View>
                 </TouchableOpacity>
               ))}
@@ -237,13 +215,14 @@ export default function NewStakeScreen({ navigation }) {
         const charity = CHARITY_CATEGORIES.find(ch => ch.id === charityId);
         return (
           <View style={styles.stepContent}>
+            <Text style={styles.stepHint}>Review your commitment. There's no turning back.</Text>
             <View style={styles.summaryCard}>
               {[
-                { label: 'Goal', value: title },
-                { label: 'Category', value: `${getCategoryEmoji(category)} ${CATEGORIES.find(c => c.id === category)?.label}` },
-                { label: 'Stake', value: `$${amount}`, highlight: true },
-                { label: 'Deadline', value: formatDeadline(deadline) },
-                { label: 'Charity', value: `${charity?.icon} ${charity?.name}` },
+                { label: 'MISSION', value: title },
+                { label: 'DOMAIN', value: `${getCategoryEmoji(category)} ${CATEGORIES.find(c => c.id === category)?.label?.toUpperCase()}` },
+                { label: 'STAKE', value: `$${amount}`, highlight: true },
+                { label: 'DEADLINE', value: formatDeadline(deadline) },
+                { label: 'CONSEQUENCE', value: `${charity?.icon} ${charity?.name}` },
               ].map((row, i, arr) => (
                 <View key={i} style={[styles.summaryRow, i < arr.length - 1 && styles.summaryRowBorder]}>
                   <Text style={styles.summaryLabel}>{row.label}</Text>
@@ -253,10 +232,9 @@ export default function NewStakeScreen({ navigation }) {
                 </View>
               ))}
             </View>
-
             <View style={styles.disclaimerBox}>
               <Text style={styles.disclaimerText}>
-                Your card will be authorized for ${amount}. If you complete your goal and upload proof, you get it back in full.
+                Your card will be authorized for ${amount}. Complete the mission and you get it back. Fail and it's gone.
               </Text>
             </View>
           </View>
@@ -267,12 +245,12 @@ export default function NewStakeScreen({ navigation }) {
 
   return (
     <SafeAreaView style={styles.container}>
-      {/* Top bar */}
+      {/* Header */}
       <View style={styles.topBar}>
         <TouchableOpacity onPress={() => step === 0 ? navigation.goBack() : setStep(s => s - 1)}>
-          <Text style={styles.backText}>{step === 0 ? 'Cancel' : '← Back'}</Text>
+          <Text style={styles.backText}>{step === 0 ? '✕' : '← BACK'}</Text>
         </TouchableOpacity>
-        <Text style={styles.stepIndicator}>{step + 1} / {STEPS.length}</Text>
+        <Text style={styles.stepCounter}>STEP {step + 1} / {STEPS.length}</Text>
       </View>
 
       {/* Progress bar */}
@@ -281,8 +259,9 @@ export default function NewStakeScreen({ navigation }) {
       </View>
 
       {/* Step title */}
-      <View style={styles.stepTitleRow}>
-        <Text style={styles.stepTitle}>{STEPS[step]}</Text>
+      <View style={styles.stepHeader}>
+        <Text style={styles.stepSubtitle}>{STEPS[step].label}</Text>
+        <Text style={styles.stepTitle}>{STEPS[step].title}</Text>
       </View>
 
       <ScrollView style={styles.scrollArea} contentContainerStyle={{ paddingBottom: 40 }} keyboardShouldPersistTaps="handled">
@@ -298,7 +277,7 @@ export default function NewStakeScreen({ navigation }) {
           activeOpacity={0.85}
         >
           <Text style={styles.nextBtnText}>
-            {creating ? 'Creating...' : step === STEPS.length - 1 ? "Lock It In" : 'Continue'}
+            {creating ? 'PROCESSING...' : step === STEPS.length - 1 ? 'LOCK IT IN →' : `NEXT: ${STEPS[step + 1]?.label ?? 'CONFIRM'} →`}
           </Text>
         </TouchableOpacity>
       </View>
@@ -310,126 +289,99 @@ const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: c.bg },
 
   topBar: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingVertical: 12,
+    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
+    paddingHorizontal: 16, paddingVertical: 12,
   },
-  backText: { fontSize: 15, color: c.textSecondary },
-  stepIndicator: { fontSize: 13, color: c.textTertiary },
+  backText: { fontSize: 13, fontWeight: '700', color: c.textSecondary, letterSpacing: 0.5 },
+  stepCounter: { fontSize: 12, fontWeight: '700', color: c.accent, letterSpacing: 1 },
 
-  progressTrack: { height: 2, backgroundColor: c.border, marginHorizontal: 20 },
-  progressFill: { height: '100%', backgroundColor: c.accent, borderRadius: 1 },
+  progressTrack: { height: 2, backgroundColor: c.border, marginHorizontal: 16 },
+  progressFill: { height: '100%', backgroundColor: c.accent },
 
-  stepTitleRow: { paddingHorizontal: 20, paddingTop: 24, paddingBottom: 20 },
-  stepTitle: { fontSize: 26, fontWeight: '700', color: c.text, letterSpacing: -0.8 },
+  stepHeader: { paddingHorizontal: 16, paddingTop: 20, paddingBottom: 16 },
+  stepSubtitle: { fontSize: 10, fontWeight: '700', color: c.textTertiary, letterSpacing: 1.5, marginBottom: 4 },
+  stepTitle: { fontSize: 24, fontWeight: '700', color: c.text, letterSpacing: -0.5 },
 
-  scrollArea: { flex: 1, paddingHorizontal: 20 },
+  scrollArea: { flex: 1, paddingHorizontal: 16 },
   stepContent: { gap: 16 },
 
-  fieldLabel: {
-    fontSize: 11, fontWeight: '600', letterSpacing: 0.8,
-    color: c.textTertiary, textTransform: 'uppercase',
-  },
-  hint: { fontSize: 13, color: c.textTertiary, lineHeight: 18 },
+  fieldLabel: { fontSize: 10, fontWeight: '700', color: c.textTertiary, letterSpacing: 1.5 },
+  stepHint: { fontSize: 13, color: c.textTertiary, lineHeight: 18 },
 
-  // Goal step
-  goalInput: {
-    backgroundColor: c.surface,
-    borderWidth: 1,
-    borderColor: c.border,
-    borderRadius: 14,
-    padding: 16,
-    color: c.text,
-    fontSize: 17,
-    fontWeight: '500',
-    minHeight: 80,
-    letterSpacing: -0.2,
+  missionInput: {
+    backgroundColor: c.surface, borderWidth: 1, borderColor: c.border,
+    borderRadius: 12, padding: 16, color: c.text, fontSize: 16,
+    fontWeight: '500', minHeight: 80, letterSpacing: -0.2,
   },
+
   categoryGrid: { flexDirection: 'row', flexWrap: 'wrap', gap: 8 },
-  categoryChip: {
+  categoryBtn: {
     flexDirection: 'row', alignItems: 'center', gap: 6,
-    paddingVertical: 9, paddingHorizontal: 13,
-    backgroundColor: c.surface, borderRadius: 10,
-    borderWidth: 1, borderColor: c.border,
+    paddingVertical: 10, paddingHorizontal: 12,
+    backgroundColor: c.surface, borderRadius: 8, borderWidth: 1, borderColor: c.border,
   },
-  categoryChipActive: { borderColor: c.accent, backgroundColor: c.accentSoft },
+  categoryBtnActive: { borderColor: c.accent, backgroundColor: c.accentSoft },
   categoryEmoji: { fontSize: 14 },
-  categoryLabel: { fontSize: 13, color: c.textSecondary },
-  categoryLabelActive: { color: c.accent, fontWeight: '500' },
+  categoryLabel: { fontSize: 11, fontWeight: '700', color: c.textTertiary, letterSpacing: 0.5 },
+  categoryLabelActive: { color: c.accent },
 
-  // Amount step
-  amountContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: c.surface,
-    borderRadius: 14,
-    borderWidth: 1,
-    borderColor: c.border,
-    paddingHorizontal: 16,
+  warningBox: {
+    backgroundColor: 'rgba(255,45,85,0.06)', borderRadius: 10,
+    padding: 14, borderWidth: 1, borderColor: 'rgba(255,45,85,0.15)',
+    borderLeftWidth: 3, borderLeftColor: c.accent,
   },
-  dollarSign: { fontSize: 28, fontWeight: '700', color: c.textTertiary, marginRight: 4 },
-  amountInput: { flex: 1, fontSize: 40, fontWeight: '700', color: c.text, paddingVertical: 16, letterSpacing: -1 },
+  warningText: { fontSize: 12, color: c.textTertiary, lineHeight: 18, fontStyle: 'italic' },
+
+  amountContainer: {
+    flexDirection: 'row', alignItems: 'center',
+    backgroundColor: c.surface, borderRadius: 12,
+    borderWidth: 1, borderColor: c.border, paddingHorizontal: 16,
+  },
+  dollarSign: { fontSize: 32, fontWeight: '700', color: c.textTertiary, marginRight: 4 },
+  amountInput: { flex: 1, fontSize: 48, fontWeight: '700', color: c.text, paddingVertical: 16, letterSpacing: -1 },
   chipRow: { flexDirection: 'row', gap: 8 },
   chip: {
     flex: 1, paddingVertical: 12, backgroundColor: c.surface,
-    borderRadius: 10, borderWidth: 1, borderColor: c.border, alignItems: 'center',
+    borderRadius: 8, borderWidth: 1, borderColor: c.border, alignItems: 'center',
   },
   chipActive: { borderColor: c.accent, backgroundColor: c.accentSoft },
-  chipText: { fontSize: 15, fontWeight: '600', color: c.textSecondary },
+  chipText: { fontSize: 14, fontWeight: '700', color: c.textSecondary, letterSpacing: 0.5 },
   chipTextActive: { color: c.accent },
 
-  // Deadline
   deadlineCard: {
-    backgroundColor: c.surface, borderRadius: 14, borderWidth: 1, borderColor: c.border,
+    backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.border,
     padding: 16, flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
   },
-  deadlineText: { fontSize: 15, fontWeight: '500', color: c.text },
-  deadlineEdit: { fontSize: 13, color: c.accent },
+  deadlineText: { fontSize: 14, fontWeight: '600', color: c.text },
+  deadlineChange: { fontSize: 10, fontWeight: '700', color: c.accent, letterSpacing: 1 },
   doneBtn: { alignSelf: 'flex-end', padding: 12 },
-  doneBtnText: { color: c.accent, fontSize: 15, fontWeight: '600' },
+  doneBtnText: { color: c.accent, fontSize: 12, fontWeight: '700', letterSpacing: 1 },
 
-  // Charity step
   charityList: { gap: 8 },
   charityRow: {
     flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
-    backgroundColor: c.surface, borderRadius: 14, borderWidth: 1, borderColor: c.border,
-    padding: 14,
+    backgroundColor: c.surface, borderRadius: 12, borderWidth: 1, borderColor: c.border, padding: 14,
   },
   charityRowActive: { borderColor: c.accent, backgroundColor: c.accentSoft },
   charityLeft: { flexDirection: 'row', alignItems: 'center', gap: 12, flex: 1 },
-  charityIcon: { fontSize: 22 },
-  charityName: { fontSize: 14, fontWeight: '500', color: c.textSecondary },
+  charityIcon: { fontSize: 20 },
+  charityName: { fontSize: 12, fontWeight: '700', color: c.textSecondary, letterSpacing: 0.5 },
   charityNameActive: { color: c.text },
-  charityOrgs: { fontSize: 12, color: c.textTertiary, marginTop: 1 },
-  radioOuter: {
-    width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: c.border,
-    alignItems: 'center', justifyContent: 'center',
-  },
-  radioOuterActive: { borderColor: c.accent },
-  radioInner: { width: 10, height: 10, borderRadius: 5, backgroundColor: c.accent },
+  charityOrgs: { fontSize: 11, color: c.textTertiary, marginTop: 2 },
+  radio: { width: 20, height: 20, borderRadius: 10, borderWidth: 2, borderColor: c.border, alignItems: 'center', justifyContent: 'center' },
+  radioActive: { borderColor: c.accent },
+  radioDot: { width: 10, height: 10, borderRadius: 5, backgroundColor: c.accent },
 
-  // Summary step
-  summaryCard: {
-    backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
-    overflow: 'hidden',
-  },
-  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
+  summaryCard: { backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border, overflow: 'hidden' },
+  summaryRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 14 },
   summaryRowBorder: { borderBottomWidth: 1, borderBottomColor: c.border },
-  summaryLabel: { fontSize: 13, color: c.textTertiary },
-  summaryValue: { fontSize: 14, fontWeight: '500', color: c.text, maxWidth: '60%', textAlign: 'right' },
-  disclaimerBox: {
-    backgroundColor: c.surface, borderRadius: 12, padding: 14,
-    borderWidth: 1, borderColor: c.border,
-  },
+  summaryLabel: { fontSize: 10, fontWeight: '700', color: c.textTertiary, letterSpacing: 1 },
+  summaryValue: { fontSize: 13, fontWeight: '600', color: c.text, maxWidth: '60%', textAlign: 'right' },
+  disclaimerBox: { backgroundColor: c.surface, borderRadius: 10, padding: 14, borderWidth: 1, borderColor: c.border },
   disclaimerText: { fontSize: 12, color: c.textTertiary, lineHeight: 18, textAlign: 'center' },
 
-  // Bottom
-  bottomBar: { paddingHorizontal: 20, paddingBottom: 20, paddingTop: 12 },
-  nextBtn: {
-    backgroundColor: c.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center',
-  },
+  bottomBar: { paddingHorizontal: 16, paddingBottom: 20, paddingTop: 8 },
+  nextBtn: { backgroundColor: c.accent, borderRadius: 12, paddingVertical: 16, alignItems: 'center' },
   nextBtnDisabled: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
-  nextBtnText: { color: '#fff', fontSize: 16, fontWeight: '600' },
+  nextBtnText: { color: '#fff', fontSize: 13, fontWeight: '700', letterSpacing: 1 },
 });

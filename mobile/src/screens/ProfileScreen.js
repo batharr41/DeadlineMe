@@ -8,15 +8,6 @@ import { api } from '../services/api';
 
 const c = theme.colors;
 
-function StatRow({ label, value, color }) {
-  return (
-    <View style={styles.statRow}>
-      <Text style={styles.statLabel}>{label}</Text>
-      <Text style={[styles.statValue, color && { color }]}>{value}</Text>
-    </View>
-  );
-}
-
 export default function ProfileScreen() {
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState(null);
@@ -42,54 +33,80 @@ export default function ProfileScreen() {
   const displayName = profile?.display_name || user?.email?.split('@')[0] || 'You';
   const email = profile?.email || user?.email || '';
   const initials = displayName.slice(0, 2).toUpperCase();
-
   const memberSince = profile?.created_at
-    ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'long', year: 'numeric' })
+    ? new Date(profile.created_at).toLocaleDateString('en-US', { month: 'short', year: 'numeric' }).toUpperCase()
     : '';
+
+  const completed = profile?.stakes_completed ?? 0;
+  const failed = profile?.stakes_failed ?? 0;
 
   return (
     <SafeAreaView style={styles.container}>
       <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
 
-        <Text style={styles.pageTitle}>Profile</Text>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={styles.bolt}>⚡</Text>
+          <Text style={styles.wordmark}>DEADLINEME</Text>
+        </View>
 
-        {/* Avatar card */}
-        <View style={styles.avatarCard}>
-          <View style={styles.avatar}>
-            <Text style={styles.avatarText}>{initials}</Text>
+        {/* Avatar */}
+        <View style={styles.avatarSection}>
+          <View style={styles.avatarRing}>
+            <View style={styles.avatar}>
+              <Text style={styles.avatarText}>{initials}</Text>
+            </View>
           </View>
           <Text style={styles.displayName}>{displayName}</Text>
           <Text style={styles.email}>{email}</Text>
-          {memberSince ? <Text style={styles.memberSince}>Member since {memberSince}</Text> : null}
+          {memberSince ? <Text style={styles.memberSince}>MEMBER SINCE {memberSince}</Text> : null}
         </View>
 
-        {/* Lifetime stats */}
-        <Text style={styles.sectionTitle}>Lifetime</Text>
-        <View style={styles.statsCard}>
-          <View style={styles.statsGrid}>
-            <View style={styles.statBox}>
-              <Text style={styles.statBoxValue}>{profile?.stakes_completed ?? 0}</Text>
-              <Text style={styles.statBoxLabel}>COMPLETED</Text>
+        {/* Completed / Failed */}
+        <View style={styles.missionGrid}>
+          <View style={[styles.missionCard, styles.missionCardSuccess]}>
+            <View style={styles.missionHeader}>
+              <Text style={styles.missionCardLabel}>COMPLETED</Text>
+              <Text style={styles.missionCheck}>✓</Text>
             </View>
-            <View style={[styles.statBox, styles.statBoxBorder]}>
-              <Text style={styles.statBoxValue}>{profile?.stakes_failed ?? 0}</Text>
-              <Text style={styles.statBoxLabel}>FAILED</Text>
-            </View>
+            <Text style={styles.missionNumber}>{String(completed).padStart(2, '0')}</Text>
+            <Text style={styles.missionSub}>Missions{'\n'}Succeeded</Text>
           </View>
-          <View style={styles.divider} />
-          <StatRow label="Total saved" value={`$${profile?.total_saved ?? 0}`} color={c.success} />
-          <View style={styles.rowDivider} />
-          <StatRow label="Total lost" value={`$${profile?.total_lost ?? 0}`} color={c.accent} />
-          <View style={styles.rowDivider} />
-          <StatRow label="Total staked" value={`$${profile?.total_staked ?? 0}`} />
+          <View style={[styles.missionCard, styles.missionCardFail]}>
+            <View style={styles.missionHeader}>
+              <Text style={styles.missionCardLabelFail}>FAILED</Text>
+              <Text style={styles.missionX}>✗</Text>
+            </View>
+            <Text style={styles.missionNumber}>{String(failed).padStart(2, '0')}</Text>
+            <Text style={styles.missionSub}>Consequences{'\n'}Met</Text>
+          </View>
+        </View>
+
+        {/* Financial audit */}
+        <Text style={styles.auditTitle}>FINANCIAL AUDIT</Text>
+
+        <View style={styles.auditCard}>
+          <View style={styles.auditRow}>
+            <Text style={styles.auditLabel}>Total Staked</Text>
+            <Text style={styles.auditValue}>${profile?.total_staked ?? 0}</Text>
+          </View>
+          <View style={styles.auditDivider} />
+          <View style={styles.auditRow}>
+            <Text style={styles.auditLabel}>Total Saved</Text>
+            <Text style={[styles.auditValue, { color: c.success }]}>${profile?.total_saved ?? 0}</Text>
+          </View>
+          <View style={styles.auditDivider} />
+          <View style={styles.auditRow}>
+            <Text style={styles.auditLabel}>Total Lost</Text>
+            <Text style={[styles.auditValue, { color: c.accent }]}>${profile?.total_lost ?? 0}</Text>
+          </View>
         </View>
 
         {/* Sign out */}
         <TouchableOpacity style={styles.signOutBtn} onPress={handleSignOut} activeOpacity={0.7}>
-          <Text style={styles.signOutText}>Sign Out</Text>
+          <Text style={styles.signOutIcon}>→</Text>
+          <Text style={styles.signOutText}>SIGN OUT</Text>
         </TouchableOpacity>
-
-        <Text style={styles.version}>DeadlineMe v1.0</Text>
 
         <View style={{ height: 32 }} />
       </ScrollView>
@@ -99,61 +116,63 @@ export default function ProfileScreen() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: c.bg },
-  scroll: { paddingHorizontal: 20, paddingTop: 12 },
+  scroll: { paddingHorizontal: 16, paddingTop: 8 },
 
-  pageTitle: {
-    fontSize: 28, fontWeight: '700', color: c.text,
-    letterSpacing: -0.8, marginBottom: 20,
-  },
+  header: { flexDirection: 'row', alignItems: 'center', gap: 8, marginBottom: 24 },
+  bolt: { fontSize: 18, color: c.accent },
+  wordmark: { fontSize: 18, fontWeight: '700', color: c.accent, letterSpacing: 2 },
 
-  // Avatar card
-  avatarCard: {
-    backgroundColor: c.surface, borderRadius: 16, padding: 24,
-    borderWidth: 1, borderColor: c.border, alignItems: 'center', marginBottom: 28, gap: 6,
+  // Avatar
+  avatarSection: { alignItems: 'center', marginBottom: 28, gap: 6 },
+  avatarRing: {
+    width: 88, height: 88, borderRadius: 44,
+    borderWidth: 2, borderColor: c.accent,
+    alignItems: 'center', justifyContent: 'center', marginBottom: 4,
   },
   avatar: {
-    width: 72, height: 72, borderRadius: 20,
-    backgroundColor: c.accentSoft, borderWidth: 1, borderColor: c.accentBorder,
-    alignItems: 'center', justifyContent: 'center', marginBottom: 8,
+    width: 76, height: 76, borderRadius: 38,
+    backgroundColor: c.accentSoft,
+    alignItems: 'center', justifyContent: 'center',
   },
-  avatarText: { fontSize: 26, fontWeight: '700', color: c.accent },
-  displayName: { fontSize: 20, fontWeight: '700', color: c.text, letterSpacing: -0.4 },
+  avatarText: { fontSize: 28, fontWeight: '700', color: c.accent },
+  displayName: { fontSize: 20, fontWeight: '700', color: c.text, letterSpacing: -0.3 },
   email: { fontSize: 13, color: c.textSecondary },
-  memberSince: { fontSize: 12, color: c.textTertiary },
+  memberSince: { fontSize: 10, fontWeight: '600', color: c.textTertiary, letterSpacing: 1.5, marginTop: 2 },
 
-  // Section title
-  sectionTitle: {
-    fontSize: 13, fontWeight: '600', color: c.textSecondary,
-    textTransform: 'uppercase', letterSpacing: 0.6, marginBottom: 10,
+  // Mission grid
+  missionGrid: { flexDirection: 'row', gap: 10, marginBottom: 24 },
+  missionCard: {
+    flex: 1, borderRadius: 14, padding: 16,
+    borderWidth: 1, gap: 4,
   },
+  missionCardSuccess: { backgroundColor: 'rgba(52,199,89,0.08)', borderColor: 'rgba(52,199,89,0.25)' },
+  missionCardFail: { backgroundColor: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.2)' },
+  missionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
+  missionCardLabel: { fontSize: 10, fontWeight: '700', color: c.success, letterSpacing: 1 },
+  missionCardLabelFail: { fontSize: 10, fontWeight: '700', color: c.accent, letterSpacing: 1 },
+  missionCheck: { fontSize: 16, color: c.success },
+  missionX: { fontSize: 16, color: c.accent },
+  missionNumber: { fontSize: 36, fontWeight: '700', color: c.text, letterSpacing: -1 },
+  missionSub: { fontSize: 11, color: c.textTertiary, lineHeight: 16 },
 
-  // Stats card
-  statsCard: {
-    backgroundColor: c.card, borderRadius: 16, borderWidth: 1, borderColor: c.border,
-    overflow: 'hidden', marginBottom: 28,
+  // Audit
+  auditTitle: { fontSize: 11, fontWeight: '700', color: c.textTertiary, letterSpacing: 1.5, marginBottom: 10 },
+  auditCard: {
+    backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border,
+    overflow: 'hidden', marginBottom: 20,
   },
-  statsGrid: { flexDirection: 'row' },
-  statBox: {
-    flex: 1, padding: 20, alignItems: 'center', gap: 4,
-  },
-  statBoxBorder: { borderLeftWidth: 1, borderLeftColor: c.border },
-  statBoxValue: { fontSize: 32, fontWeight: '700', color: c.text, letterSpacing: -1 },
-  statBoxLabel: { fontSize: 10, fontWeight: '600', letterSpacing: 0.8, color: c.textTertiary },
-  divider: { height: 1, backgroundColor: c.border },
-  statRow: {
-    flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16,
-  },
-  rowDivider: { height: 1, backgroundColor: c.border, marginHorizontal: 16 },
-  statLabel: { fontSize: 14, color: c.textSecondary },
-  statValue: { fontSize: 15, fontWeight: '600', color: c.text },
+  auditRow: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: 16 },
+  auditDivider: { height: 1, backgroundColor: c.border },
+  auditLabel: { fontSize: 14, color: c.textSecondary },
+  auditValue: { fontSize: 16, fontWeight: '700', color: c.text },
 
   // Sign out
   signOutBtn: {
-    borderRadius: 14, paddingVertical: 15, alignItems: 'center',
-    borderWidth: 1, borderColor: c.accentBorder,
-    backgroundColor: c.accentSoft, marginBottom: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8,
+    borderRadius: 12, paddingVertical: 15,
+    backgroundColor: 'rgba(255,45,85,0.08)',
+    borderWidth: 1, borderColor: 'rgba(255,45,85,0.25)',
   },
-  signOutText: { fontSize: 15, fontWeight: '600', color: c.accent },
-
-  version: { fontSize: 12, color: c.textDisabled, textAlign: 'center' },
+  signOutIcon: { fontSize: 14, color: c.accent, fontWeight: '700' },
+  signOutText: { fontSize: 13, fontWeight: '700', color: c.accent, letterSpacing: 1.5 },
 });

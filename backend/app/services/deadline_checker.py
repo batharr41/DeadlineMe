@@ -1,71 +1,76 @@
 """
 Deadline Checker Service
 
-Scans for expired active stakes and processes them as failures:
-1. Captures the payment (funds go toward the charity)
-2. Updates stake status to 'failed'
-3. Updates user stats
-
-Runs every 60 seconds as a background task inside FastAPI.
+Runs as an asyncio background task every 60s (via main.py lifespan).
+Checks for expired stakes and processes them (capture payment, update status).
 """
 
 from datetime import datetime, timezone
-import logging
-
 from app.core.deps import get_supabase
 from app.services.stripe_service import process_failed_stake
 
-logger = logging.getLogger("uvicorn.error")
-
 
 async def check_expired_stakes():
-    """Find all active stakes past their deadline and process them as failures."""
+    """
+    Find all active stakes past their deadline and process them as failures.
+    """
     db = get_supabase()
-    now_iso = datetime.now(timezone.utc).isoformat()
+    now = datetime.now(timezone.utc).isoformat()
 
+    # Find expired active stakes
     expired = (
         db.table("stakes")
         .select("*")
         .eq("status", "active")
-        .lt("deadline", now_iso)
+        .lt("deadline", now)
         .execute()
     )
 
     if not expired.data:
+        print(f"[{now}] No expired stakes found.")
         return []
 
     results = []
     for stake in expired.data:
         try:
-            # Capture funds (goes to charity in production)
-            await process_failed_stake(
-                payment_intent_id=stake.get("stripe_payment_intent_id"),
-                anti_charity_id=stake.get("anti_charity_id"),
+            # Process payment (capture funds for anti-charity)
+            payment_result = await process_failed_stake(
+                payment_intent_id=stake["stripe_payment_intent_id"],
+                anti_charity_id=stake["anti_charity_id"],
             )
 
             # Update stake status
             db.table("stakes").update({
                 "status": "failed",
-                "completed_at": now_iso,
+                "completed_at": now,
                 "verification_result": "Deadline expired without proof of completion.",
             }).eq("id", stake["id"]).execute()
 
-            # Update user stats (best-effort — don't block if this fails)
+            # Update user stats
+            db.table("profiles").update({
+                "total_lost": db.rpc("increment_field", {
+                    "row_id": stake["user_id"],
+                    "field_name": "total_lost",
+                    "amount": stake["stake_amount"],
+                }),
+            }).eq("id", stake["user_id"]).execute()
+
+            # Emit group event for the failure
             try:
-                profile = (
-                    db.table("profiles")
-                    .select("total_lost, stakes_failed")
-                    .eq("id", stake["user_id"])
-                    .single()
-                    .execute()
-                )
-                if profile.data:
-                    db.table("profiles").update({
-                        "total_lost": (profile.data.get("total_lost") or 0) + stake["stake_amount"],
-                        "stakes_failed": (profile.data.get("stakes_failed") or 0) + 1,
-                    }).eq("id", stake["user_id"]).execute()
-            except Exception as stats_err:
-                logger.warning(f"  Stats update failed for user {stake['user_id']}: {stats_err}")
+                memberships = db.table("group_members").select("group_id").eq("user_id", stake["user_id"]).execute()
+                for m in (memberships.data or []):
+                    db.table("group_events").insert({
+                        "group_id": m["group_id"],
+                        "user_id": stake["user_id"],
+                        "stake_id": stake["id"],
+                        "event_type": "stake_failed",
+                        "payload": {
+                            "title": stake["title"],
+                            "stake_amount": stake["stake_amount"],
+                        },
+                    }).execute()
+            except Exception:
+                pass
 
             results.append({
                 "stake_id": stake["id"],
@@ -74,16 +79,16 @@ async def check_expired_stakes():
                 "status": "failed",
             })
 
-            logger.info(
-                f"  ❌ Stake '{stake['title']}' expired. "
-                f"${stake['stake_amount']} → {stake.get('anti_charity_name', 'charity')}"
-            )
+            print(f"  ❌ Stake '{stake['title']}' expired. ${stake['stake_amount']} captured.")
 
         except Exception as e:
-            logger.exception(f"  ⚠️ Error processing stake {stake['id']}: {e}")
-            results.append({"stake_id": stake["id"], "error": str(e)})
+            print(f"  ⚠️ Error processing stake {stake['id']}: {e}")
+            results.append({
+                "stake_id": stake["id"],
+                "error": str(e),
+            })
 
-    logger.info(f"✅ Processed {len(results)} expired stakes at {now_iso}")
+    print(f"[{now}] Processed {len(results)} expired stakes.")
     return results
 
 
