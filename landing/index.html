@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8"/>
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<meta name="description" content="DeadlineMe — Set a deadline. Stake real cash. Miss it and your money goes to charity. No excuses. No extensions. No mercy."/>
+<title>DeadlineMe — No Excuses. No Extensions. No Mercy.</title>
+<link href="https://fonts.googleapis.com/css2?family=Be+Vietnam+Pro:ital,wght@0,400;0,600;0,700;0,800;0,900;1,800;1,900&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet"/>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+  :root {
+    --bg: #0A0A0F;
+    --card: #12121A;
+    --card2: #1A1A25;
+    --accent: #FF3366;
+    --accent-dim: rgba(255,51,102,0.15);
+    --accent-glow: rgba(255,51,102,0.4);
+    --border: rgba(255,51,102,0.15);
+    --border-hard: rgba(255,51,102,0.35);
+    --text: #F0F0F5;
+    --muted: #8888AA;
+    --dim: #444460;
+    --success: #00E676;
+    --mono: 'JetBrains Mono', monospace;
+    --head: 'Be Vietnam Pro', sans-serif;
+  }
+
+  html { scroll-behavior: smooth; }
+
+  body {
+    background: var(--bg);
+    color: var(--text);
+    font-family: var(--head);
+    min-height: 100vh;
+    overflow-x: hidden;
+  }
+
+  /* ── Noise texture overlay ── */
+  body::before {
+    content: '';
+    position: fixed;
+    inset: 0;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)' opacity='0.03'/%3E%3C/svg%3E");
+    pointer-events: none;
+    z-index: 0;
+    opacity: 0.4;
+  }
+
+  /* ── Header ── */
+  header {
+    position: fixed;
+    top: 0; left: 0; right: 0;
+    z-index: 100;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 16px 24px;
+    background: rgba(10,10,15,0.9);
+    backdrop-filter: blur(20px);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .logo-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .logo-text {
+    font-size: 18px;
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: 0.15em;
+    color: var(--accent);
+    text-transform: uppercase;
+  }
+
+  .nav-cta {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    padding: 10px 20px;
+    border-radius: 8px;
+    font-family: var(--head);
+    font-size: 13px;
+    font-weight: 800;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.15s;
+  }
+  .nav-cta:hover { opacity: 0.85; }
+
+  /* ── Hero ── */
+  .hero {
+    padding: 140px 24px 80px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    text-align: center;
+    position: relative;
+  }
+
+  /* Red glow behind logo */
+  .logo-glow {
+    position: absolute;
+    top: 100px;
+    width: 300px;
+    height: 300px;
+    background: radial-gradient(circle, rgba(255,51,102,0.12) 0%, transparent 70%);
+    pointer-events: none;
+  }
+
+  .hero-logo { margin-bottom: 28px; position: relative; }
+
+  .hero-title {
+    font-size: clamp(52px, 12vw, 96px);
+    font-weight: 900;
+    font-style: italic;
+    letter-spacing: -0.02em;
+    color: #fff;
+    text-transform: uppercase;
+    line-height: 0.95;
+    margin-bottom: 16px;
+  }
+
+  .hero-tagline {
+    font-family: var(--mono);
+    font-size: clamp(11px, 2.5vw, 13px);
+    color: var(--accent);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 28px;
+  }
+
+  .hero-sub {
+    font-size: clamp(16px, 3vw, 20px);
+    color: var(--muted);
+    max-width: 480px;
+    line-height: 1.6;
+    margin-bottom: 48px;
+  }
+
+  .hero-sub strong { color: var(--text); }
+
+  /* ── Email form ── */
+  .email-form {
+    display: flex;
+    gap: 10px;
+    width: 100%;
+    max-width: 480px;
+    margin-bottom: 16px;
+  }
+
+  .email-input {
+    flex: 1;
+    background: var(--card);
+    border: 1px solid var(--border-hard);
+    border-radius: 10px;
+    padding: 14px 18px;
+    color: var(--text);
+    font-family: var(--head);
+    font-size: 15px;
+    transition: border-color 0.2s, box-shadow 0.2s;
+  }
+  .email-input::placeholder { color: var(--dim); }
+  .email-input:focus {
+    outline: none;
+    border-color: var(--accent);
+    box-shadow: 0 0 0 3px var(--accent-dim);
+  }
+
+  .btn-primary {
+    background: var(--accent);
+    color: #fff;
+    border: none;
+    border-radius: 10px;
+    padding: 14px 24px;
+    font-family: var(--head);
+    font-size: 14px;
+    font-weight: 800;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    cursor: pointer;
+    white-space: nowrap;
+    box-shadow: 0 8px 32px var(--accent-glow);
+    transition: transform 0.15s, box-shadow 0.15s;
+  }
+  .btn-primary:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 12px 40px var(--accent-glow);
+  }
+  .btn-primary:active { transform: translateY(0); }
+
+  .hero-disclaimer {
+    font-size: 12px;
+    color: var(--dim);
+    font-family: var(--mono);
+  }
+
+  /* ── Section layout ── */
+  section {
+    padding: 80px 24px;
+    max-width: 900px;
+    margin: 0 auto;
+  }
+
+  .section-label {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.3em;
+    text-transform: uppercase;
+    margin-bottom: 12px;
+  }
+
+  .section-title {
+    font-size: clamp(28px, 5vw, 42px);
+    font-weight: 900;
+    font-style: italic;
+    color: #fff;
+    text-transform: uppercase;
+    line-height: 1;
+    margin-bottom: 48px;
+  }
+
+  /* ── How it works ── */
+  .steps {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 16px;
+  }
+
+  .step-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 24px 20px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    position: relative;
+    overflow: hidden;
+    transition: border-color 0.2s, transform 0.2s;
+  }
+  .step-card:hover {
+    border-color: var(--border-hard);
+    transform: translateY(-3px);
+  }
+
+  .step-num {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--accent);
+    letter-spacing: 0.2em;
+  }
+
+  .step-icon { font-size: 28px; }
+
+  .step-name {
+    font-size: 14px;
+    font-weight: 800;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+  }
+
+  .step-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.5;
+  }
+
+  /* ── Feature cards ── */
+  .features {
+    display: grid;
+    grid-template-columns: 1fr;
+    gap: 14px;
+  }
+
+  .feature-card {
+    background: var(--card);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    padding: 22px;
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    transition: border-color 0.2s;
+  }
+  .feature-card:hover { border-color: var(--border-hard); }
+  .feature-card:first-child { border-color: var(--border-hard); box-shadow: 0 0 20px var(--accent-dim); }
+
+  .feature-icon-box {
+    background: #0A0A0F;
+    border: 1px solid var(--border-hard);
+    border-radius: 12px;
+    padding: 12px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 48px;
+    height: 48px;
+  }
+
+  .feature-icon-box svg { width: 22px; height: 22px; }
+
+  .feature-title {
+    font-size: 15px;
+    font-weight: 800;
+    color: #fff;
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    margin-bottom: 6px;
+  }
+
+  .feature-desc {
+    font-size: 13px;
+    color: var(--muted);
+    line-height: 1.55;
+  }
+
+  /* ── Stats bar ── */
+  .stats-bar {
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+    padding: 40px 24px;
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 0;
+    max-width: 100%;
+  }
+
+  .stat-item {
+    text-align: center;
+    padding: 0 24px;
+    border-right: 1px solid var(--border);
+  }
+  .stat-item:last-child { border-right: none; }
+
+  .stat-value {
+    font-size: clamp(24px, 5vw, 40px);
+    font-weight: 900;
+    color: var(--accent);
+    font-style: italic;
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .stat-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--dim);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+  }
+
+  /* ── Squad section ── */
+  .squad-section {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 48px;
+    align-items: center;
+  }
+
+  @media (max-width: 700px) {
+    .squad-section { grid-template-columns: 1fr; }
+    .email-form { flex-direction: column; }
+    .stats-bar { grid-template-columns: 1fr; }
+    .stat-item { border-right: none; border-bottom: 1px solid var(--border); padding: 20px 0; }
+    .stat-item:last-child { border-bottom: none; }
+    .steps { grid-template-columns: 1fr 1fr; }
+  }
+
+  @media (max-width: 400px) {
+    .steps { grid-template-columns: 1fr; }
+  }
+
+  .squad-copy .section-title { margin-bottom: 16px; }
+
+  .squad-copy p {
+    font-size: 16px;
+    color: var(--muted);
+    line-height: 1.7;
+    margin-bottom: 24px;
+  }
+
+  .squad-stat-pill {
+    display: inline-flex;
+    align-items: center;
+    gap: 10px;
+    background: var(--accent-dim);
+    border: 1px solid var(--border-hard);
+    border-radius: 100px;
+    padding: 10px 18px;
+  }
+
+  .squad-stat-pill span:first-child {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--accent);
+  }
+
+  .squad-stat-pill span:last-child {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--text);
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+  }
+
+  /* Squad mock card */
+  .squad-card {
+    background: var(--card);
+    border: 1px solid var(--border-hard);
+    border-radius: 20px;
+    overflow: hidden;
+    box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+  }
+
+  .squad-card-header {
+    padding: 18px 20px;
+    border-bottom: 1px solid var(--border);
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+  }
+
+  .squad-name-label {
+    font-family: var(--mono);
+    font-size: 10px;
+    color: var(--muted);
+    letter-spacing: 0.2em;
+    margin-bottom: 4px;
+  }
+
+  .squad-name {
+    font-size: 20px;
+    font-weight: 900;
+    font-style: italic;
+    color: #fff;
+    text-transform: uppercase;
+  }
+
+  .squad-invite {
+    font-family: var(--mono);
+    font-size: 10px;
+    background: var(--card2);
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    padding: 6px 10px;
+    color: var(--text);
+    letter-spacing: 0.15em;
+  }
+
+  .squad-stats-row {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .squad-mini-stat {
+    padding: 14px 20px;
+    border-right: 1px solid var(--border);
+  }
+  .squad-mini-stat:last-child { border-right: none; }
+
+  .squad-mini-label {
+    font-family: var(--mono);
+    font-size: 9px;
+    color: var(--dim);
+    letter-spacing: 0.2em;
+    text-transform: uppercase;
+    margin-bottom: 4px;
+  }
+
+  .squad-mini-value {
+    font-size: 22px;
+    font-weight: 900;
+    color: var(--accent);
+  }
+
+  .member-list { padding: 8px 0; }
+
+  .member-row {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 12px 20px;
+    border-bottom: 1px solid rgba(255,255,255,0.04);
+    transition: background 0.15s;
+  }
+  .member-row:last-child { border-bottom: none; }
+  .member-row:hover { background: rgba(255,255,255,0.02); }
+
+  .member-avatar {
+    width: 36px;
+    height: 36px;
+    border-radius: 50%;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 13px;
+    font-weight: 800;
+    color: #fff;
+    flex-shrink: 0;
+  }
+
+  .member-name {
+    font-size: 13px;
+    font-weight: 700;
+    color: var(--text);
+    text-transform: uppercase;
+    letter-spacing: 0.03em;
+    flex: 1;
+  }
+
+  .member-streak {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--muted);
+  }
+
+  .member-perf {
+    font-family: var(--mono);
+    font-size: 12px;
+    font-weight: 700;
+  }
+
+  .hit { color: var(--success); }
+  .miss { color: var(--accent); }
+
+  /* ── CTA section ── */
+  .cta-section {
+    background: linear-gradient(135deg, #0F0F18 0%, #0A0A0F 100%);
+    border-top: 1px solid var(--border);
+    padding: 100px 24px;
+    text-align: center;
+  }
+
+  .cta-section .section-title {
+    margin-bottom: 16px;
+  }
+
+  .cta-section p {
+    font-size: 18px;
+    color: var(--muted);
+    max-width: 420px;
+    margin: 0 auto 48px;
+    line-height: 1.6;
+  }
+
+  .cta-form {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+    max-width: 440px;
+    margin: 0 auto;
+  }
+
+  .cta-form .email-input { width: 100%; }
+
+  .cta-form .btn-primary {
+    width: 100%;
+    padding: 18px;
+    font-size: 16px;
+    letter-spacing: 0.08em;
+  }
+
+  /* ── Footer ── */
+  footer {
+    background: var(--card);
+    border-top: 1px solid var(--border);
+    padding: 40px 24px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 20px;
+    text-align: center;
+  }
+
+  .footer-links {
+    display: flex;
+    gap: 24px;
+  }
+
+  .footer-links a {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    text-decoration: none;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    transition: color 0.15s;
+  }
+  .footer-links a:hover { color: var(--accent); }
+
+  .footer-copy {
+    font-family: var(--mono);
+    font-size: 11px;
+    color: var(--dim);
+    letter-spacing: 0.1em;
+  }
+
+  /* ── Divider line ── */
+  .divider {
+    height: 1px;
+    background: linear-gradient(90deg, transparent, var(--border-hard), transparent);
+    margin: 0;
+  }
+
+  /* ── Scroll animations ── */
+  .fade-up {
+    opacity: 0;
+    transform: translateY(24px);
+    transition: opacity 0.6s ease, transform 0.6s ease;
+  }
+  .fade-up.visible {
+    opacity: 1;
+    transform: translateY(0);
+  }
+
+  /* Toast notification */
+  .toast {
+    position: fixed;
+    bottom: 32px;
+    left: 50%;
+    transform: translateX(-50%) translateY(100px);
+    background: var(--card2);
+    border: 1px solid var(--border-hard);
+    border-radius: 12px;
+    padding: 14px 24px;
+    font-size: 14px;
+    color: var(--text);
+    z-index: 999;
+    transition: transform 0.3s ease;
+    white-space: nowrap;
+  }
+  .toast.show { transform: translateX(-50%) translateY(0); }
+  .toast .check { color: var(--success); margin-right: 8px; }
+</style>
+</head>
+<body>
+
+<!-- Header -->
+<header>
+  <div class="logo-row">
+    <!-- D-stopwatch SVG inline — no box, no borders -->
+    <svg width="32" height="32" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M26 16 L26 84 L50 84 C70 84 84 69 84 50 C84 31 70 16 50 16 Z" stroke="#FF3366" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M36 30 L36 70 L50 70 C63 70 72 61 72 50 C72 39 63 30 50 30 Z" stroke="#FF3366" stroke-width="4" stroke-linejoin="round"/>
+      <rect x="40" y="7" width="20" height="8" rx="3.5" fill="#FF3366"/>
+      <line x1="50" y1="35" x2="50" y2="50" stroke="#FF3366" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="50" cy="50" r="3.5" fill="#FF3366"/>
+      <path d="M83 36 L91 30" stroke="#FF3366" stroke-width="4.5" stroke-linecap="round"/>
+    </svg>
+    <span class="logo-text">DeadlineMe</span>
+  </div>
+  <button class="nav-cta" onclick="document.getElementById('waitlist').scrollIntoView({behavior:'smooth'})">
+    Join Waitlist
+  </button>
+</header>
+
+<!-- Hero -->
+<div class="hero">
+  <div class="logo-glow"></div>
+
+  <div class="hero-logo fade-up">
+    <svg width="120" height="120" viewBox="0 0 100 100" fill="none" xmlns="http://www.w3.org/2000/svg">
+      <path d="M26 16 L26 84 L50 84 C70 84 84 69 84 50 C84 31 70 16 50 16 Z" stroke="#FF3366" stroke-width="5.5" stroke-linejoin="round"/>
+      <path d="M36 30 L36 70 L50 70 C63 70 72 61 72 50 C72 39 63 30 50 30 Z" stroke="#FF3366" stroke-width="3.5" stroke-linejoin="round"/>
+      <rect x="40" y="7" width="20" height="8" rx="3.5" fill="#FF3366"/>
+      <line x1="50" y1="35" x2="50" y2="50" stroke="#FF3366" stroke-width="3.5" stroke-linecap="round"/>
+      <circle cx="50" cy="50" r="3.5" fill="#FF3366"/>
+      <path d="M83 36 L91 30" stroke="#FF3366" stroke-width="4.5" stroke-linecap="round"/>
+    </svg>
+  </div>
+
+  <h1 class="hero-title fade-up">DEADLINE<br>ME</h1>
+  <p class="hero-tagline fade-up">NO EXCUSES. NO EXTENSIONS. NO MERCY.</p>
+  <p class="hero-sub fade-up">
+    Set a deadline. Stake <strong>real cash</strong> on it.<br>
+    Miss it — your money goes to charity.<br>
+    Hit it — every dollar comes back.
+  </p>
+
+  <div class="email-form fade-up">
+    <input class="email-input" id="hero-email" type="email" placeholder="Enter your email"/>
+    <button class="btn-primary" onclick="handleSignup('hero-email')">Get Early Access</button>
+  </div>
+  <p class="hero-disclaimer fade-up">Free to join. No spam. Launching soon.</p>
+</div>
+
+<div class="divider"></div>
+
+<!-- How It Works -->
+<section>
+  <p class="section-label fade-up">The Protocol</p>
+  <h2 class="section-title fade-up">How It Works</h2>
+  <div class="steps">
+    <div class="step-card fade-up">
+      <span class="step-num">01</span>
+      <span class="step-icon">🎯</span>
+      <div class="step-name">Set Your Goal</div>
+      <div class="step-desc">Define a specific, measurable objective with a hard deadline.</div>
+    </div>
+    <div class="step-card fade-up">
+      <span class="step-num">02</span>
+      <span class="step-icon">💸</span>
+      <div class="step-name">Stake Cash</div>
+      <div class="step-desc">Put $1–$500 on the line. Real money. Real consequences.</div>
+    </div>
+    <div class="step-card fade-up">
+      <span class="step-num">03</span>
+      <span class="step-icon">🤖</span>
+      <div class="step-name">AI Verifies</div>
+      <div class="step-desc">Upload proof. Our AI reviews it. No bias. No negotiation.</div>
+    </div>
+    <div class="step-card fade-up">
+      <span class="step-num">04</span>
+      <span class="step-icon">✅</span>
+      <div class="step-name">Win It Back</div>
+      <div class="step-desc">Succeed and every dollar is refunded immediately.</div>
+    </div>
+    <div class="step-card fade-up">
+      <span class="step-num">05</span>
+      <span class="step-icon">🤲</span>
+      <div class="step-name">Or Fund Charity</div>
+      <div class="step-desc">Fail and your stake goes to a verified charity. Your loss. Someone's gain.</div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Features -->
+<section>
+  <p class="section-label fade-up">Why It Works</p>
+  <h2 class="section-title fade-up">Skin In The Game</h2>
+  <div class="features">
+
+    <div class="feature-card fade-up">
+      <div class="feature-icon-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FF3366" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="10"/>
+          <polyline points="12 6 12 12 16 14"/>
+        </svg>
+      </div>
+      <div>
+        <div class="feature-title">Hard Deadline Commitment</div>
+        <div class="feature-desc">The clock doesn't pause. Missing the mark results in immediate consequences. No extensions, no grace periods after 60 minutes.</div>
+      </div>
+    </div>
+
+    <div class="feature-card fade-up">
+      <div class="feature-icon-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FF3366" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="7" width="20" height="14" rx="2"/>
+          <path d="M16 7V5a2 2 0 0 0-2-2h-4a2 2 0 0 0-2 2v2"/>
+          <line x1="12" y1="12" x2="12" y2="16"/>
+          <line x1="10" y1="14" x2="14" y2="14"/>
+        </svg>
+      </div>
+      <div>
+        <div class="feature-title">Real Money On The Line</div>
+        <div class="feature-desc">Stake between $1 and $500. Research shows financial stakes increase follow-through by 3x compared to willpower alone.</div>
+      </div>
+    </div>
+
+    <div class="feature-card fade-up">
+      <div class="feature-icon-box">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#FF3366" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M12 2L4 6V12C4 16.4 7.4 20.5 12 22C16.6 20.5 20 16.4 20 12V6L12 2Z"/>
+          <path d="M9 12L11 14L15 10"/>
+        </svg>
+      </div>
+      <div>
+        <div class="feature-title">AI-Powered Verification</div>
+        <div class="feature-desc">Upload a photo, screenshot, or video as proof. Our AI analyzes it against your stated goal. Unbiased. Instant. Final.</div>
+      </div>
+    </div>
+
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Stats -->
+<div class="stats-bar">
+  <div class="stat-item fade-up">
+    <span class="stat-value">84%</span>
+    <span class="stat-label">Accountability increase with groups</span>
+  </div>
+  <div class="stat-item fade-up">
+    <span class="stat-value">3x</span>
+    <span class="stat-label">Higher follow-through with financial stakes</span>
+  </div>
+  <div class="stat-item fade-up">
+    <span class="stat-value">$0→</span>
+    <span class="stat-label">Going live soon — be first</span>
+  </div>
+</div>
+
+<div class="divider"></div>
+
+<!-- Squads -->
+<section style="max-width:900px;margin:0 auto;">
+  <div class="squad-section">
+    <div class="squad-copy">
+      <p class="section-label fade-up">Group Accountability</p>
+      <h2 class="section-title fade-up">Bring Your Squad.</h2>
+      <p class="fade-up">Create a group, share your invite code, and hold each other accountable. Your failures are visible. Your wins are celebrated. No hiding.</p>
+      <div class="squad-stat-pill fade-up">
+        <span>+84%</span>
+        <span>Accountability Increase</span>
+      </div>
+    </div>
+
+    <div class="squad-card fade-up">
+      <div class="squad-card-header">
+        <div>
+          <div class="squad-name-label">Squad Alpha</div>
+          <div class="squad-name">The Enforcers</div>
+        </div>
+        <div class="squad-invite">CODE: AB3X9KQP</div>
+      </div>
+      <div class="squad-stats-row">
+        <div class="squad-mini-stat">
+          <div class="squad-mini-label">Squad Integrity</div>
+          <div class="squad-mini-value">94%</div>
+        </div>
+        <div class="squad-mini-stat">
+          <div class="squad-mini-label">Active Stakes</div>
+          <div class="squad-mini-value" style="color:#fff">$2,450</div>
+        </div>
+      </div>
+      <div class="member-list">
+        <div class="member-row">
+          <div class="member-avatar" style="background:#FF3366">JD</div>
+          <div class="member-name">John Doe</div>
+          <div class="member-streak">🔥 14d</div>
+          <div class="member-perf"><span class="hit">12 HIT</span> <span style="color:var(--dim)">/</span> <span class="miss">2 MISS</span></div>
+        </div>
+        <div class="member-row">
+          <div class="member-avatar" style="background:#9B59B6">SK</div>
+          <div class="member-name">Sarah Kay</div>
+          <div class="member-streak">🔥 28d</div>
+          <div class="member-perf"><span class="hit">42 HIT</span> <span style="color:var(--dim)">/</span> <span style="color:var(--muted)">0 MISS</span></div>
+        </div>
+        <div class="member-row">
+          <div class="member-avatar" style="background:#3498DB">MR</div>
+          <div class="member-name">Mike Ross</div>
+          <div class="member-streak" style="color:var(--dim)">○ 0d</div>
+          <div class="member-perf"><span class="hit">8 HIT</span> <span style="color:var(--dim)">/</span> <span class="miss">5 MISS</span></div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<div class="divider"></div>
+
+<!-- Final CTA -->
+<div class="cta-section" id="waitlist">
+  <p class="section-label fade-up" style="text-align:center">Early Access</p>
+  <h2 class="section-title fade-up" style="text-align:center">Ready To Stop<br>Making Excuses?</h2>
+  <p class="fade-up">Join the waitlist. Be first when we go live. No spam — just one email when the doors open.</p>
+  <div class="cta-form">
+    <input class="email-input" id="cta-email" type="email" placeholder="Enter your email address"/>
+    <button class="btn-primary" onclick="handleSignup('cta-email')">I'M READY TO COMMIT</button>
+    <p style="font-family:var(--mono);font-size:11px;color:var(--dim);letter-spacing:0.1em;">FREE TO JOIN · NO SPAM · LAUNCHING SOON</p>
+  </div>
+</div>
+
+<!-- Footer -->
+<footer>
+  <div class="logo-row">
+    <svg width="24" height="24" viewBox="0 0 100 100" fill="none">
+      <path d="M26 16 L26 84 L50 84 C70 84 84 69 84 50 C84 31 70 16 50 16 Z" stroke="#FF3366" stroke-width="6" stroke-linejoin="round"/>
+      <path d="M36 30 L36 70 L50 70 C63 70 72 61 72 50 C72 39 63 30 50 30 Z" stroke="#FF3366" stroke-width="4" stroke-linejoin="round"/>
+      <rect x="40" y="7" width="20" height="8" rx="3.5" fill="#FF3366"/>
+      <circle cx="50" cy="50" r="3.5" fill="#FF3366"/>
+    </svg>
+    <span style="font-size:14px;font-weight:900;font-style:italic;color:var(--accent);letter-spacing:0.15em;text-transform:uppercase;">DeadlineMe</span>
+  </div>
+  <div class="footer-links">
+    <a href="#">Privacy Policy</a>
+    <a href="#">Terms of Service</a>
+    <a href="mailto:hello@deadlineme.app">Contact</a>
+  </div>
+  <p class="footer-copy">© 2026 DeadlineMe. No excuses. No extensions. No mercy.</p>
+</footer>
+
+<!-- Toast -->
+<div class="toast" id="toast">
+  <span class="check">✓</span> You're on the list. We'll be in touch.
+</div>
+
+<script>
+  // Scroll animations
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(e => {
+      if (e.isIntersecting) {
+        e.target.classList.add('visible');
+      }
+    });
+  }, { threshold: 0.1 });
+
+  document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
+
+  // Email signup
+  const emails = new Set();
+
+  function handleSignup(inputId) {
+    const input = document.getElementById(inputId);
+    const email = input.value.trim();
+
+    if (!email || !email.includes('@')) {
+      input.style.borderColor = 'var(--accent)';
+      input.focus();
+      return;
+    }
+
+    emails.add(email);
+    input.value = '';
+    input.style.borderColor = 'var(--border-hard)';
+
+    // Show toast
+    const toast = document.getElementById('toast');
+    toast.classList.add('show');
+    setTimeout(() => toast.classList.remove('show'), 3500);
+
+    console.log('Waitlist signups:', [...emails]);
+  }
+
+  // Allow Enter key on inputs
+  document.querySelectorAll('.email-input').forEach(input => {
+    input.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') {
+        handleSignup(input.id);
+      }
+    });
+  });
+</script>
+</body>
+</html>
