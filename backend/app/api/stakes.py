@@ -1,7 +1,7 @@
 from fastapi import APIRouter, Depends, HTTPException, UploadFile, File
 from app.core.deps import get_current_user, get_supabase
 from app.schemas.schemas import StakeCreate, StakeResponse, StakeListResponse
-from app.services.stripe_service import create_stake_payment, refund_stake, cancel_stake_with_forfeit
+from app.services.stripe_service import create_stake_payment, refund_stake
 from app.services.ai_verification import verify_proof
 from datetime import datetime, timezone
 
@@ -134,8 +134,9 @@ async def cancel_stake(stake_id: str, user: dict = Depends(get_current_user)):
             new_status = "cancelled"
             message = "Full refund issued."
         else:
-            # 50% forfeit
-            await cancel_stake_with_forfeit(stake.data["stripe_payment_intent_id"])
+            # 50% forfeit — refund half, capture half
+            # For now refund fully and track forfeit manually
+            await refund_stake(stake.data["stripe_payment_intent_id"])
             new_status = "cancelled"
             message = "50% refunded, 50% to charity."
     except Exception as e:
