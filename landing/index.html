@@ -912,10 +912,11 @@
 
   document.querySelectorAll('.fade-up').forEach(el => observer.observe(el));
 
-  // Email signup
-  const emails = new Set();
+  // Supabase config
+  const SUPABASE_URL = 'https://zzouphfxigbotxdpbvxm.supabase.co';
+  const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Inp6b3VwaGZ4aWdib3R4ZHBidnhtIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NDQ3NDYwNjMsImV4cCI6MjA2MDMyMjA2M30.U2YiMGsxMKgFCMdFHMBGHoSjKYDDCNQM6RFbGKqFYmE';
 
-  function handleSignup(inputId) {
+  async function handleSignup(inputId) {
     const input = document.getElementById(inputId);
     const email = input.value.trim();
 
@@ -925,16 +926,44 @@
       return;
     }
 
-    emails.add(email);
-    input.value = '';
-    input.style.borderColor = 'var(--border-hard)';
+    // Disable button during request
+    const btn = input.nextElementSibling;
+    const originalText = btn.textContent;
+    btn.textContent = 'JOINING...';
+    btn.disabled = true;
 
-    // Show toast
-    const toast = document.getElementById('toast');
-    toast.classList.add('show');
-    setTimeout(() => toast.classList.remove('show'), 3500);
+    try {
+      const res = await fetch(`${SUPABASE_URL}/rest/v1/waitlist`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'apikey': SUPABASE_ANON_KEY,
+          'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
+          'Prefer': 'return=minimal',
+        },
+        body: JSON.stringify({ email, source: 'landing_page' }),
+      });
 
-    console.log('Waitlist signups:', [...emails]);
+      input.value = '';
+      input.style.borderColor = 'var(--border-hard)';
+
+      const toast = document.getElementById('toast');
+      if (res.status === 409) {
+        // Already signed up
+        toast.innerHTML = '<span class="check">✓</span> You\'re already on the list!';
+      } else {
+        toast.innerHTML = '<span class="check">✓</span> You\'re on the list. We\'ll be in touch.';
+      }
+      toast.classList.add('show');
+      setTimeout(() => toast.classList.remove('show'), 3500);
+
+    } catch (err) {
+      console.error(err);
+      alert('Something went wrong. Try again.');
+    } finally {
+      btn.textContent = originalText;
+      btn.disabled = false;
+    }
   }
 
   // Allow Enter key on inputs
