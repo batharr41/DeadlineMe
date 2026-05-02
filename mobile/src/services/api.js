@@ -27,29 +27,15 @@ class ApiService {
   }
 
   // Stakes
-  async createStake(data) {
-    return this.request('POST', '/api/stakes', data);
-  }
-
-  async getMyStakes() {
-    return this.request('GET', '/api/stakes');
-  }
-
-  async getStake(id) {
-    return this.request('GET', `/api/stakes/${id}`);
-  }
-
-  async cancelStake(id, emergency = false) {
-    return this.request('POST', `/api/stakes/${id}/cancel`, { emergency });
-  }
-
+  async createStake(data) { return this.request('POST', '/api/stakes', data); }
+  async getMyStakes() { return this.request('GET', '/api/stakes'); }
+  async getStake(id) { return this.request('GET', `/api/stakes/${id}`); }
+  async cancelStake(id) { return this.request('POST', `/api/stakes/${id}/cancel`); }
   async submitProof(stakeId, formData) {
     const headers = await this.getHeaders();
     delete headers['Content-Type'];
     const response = await fetch(`${API_URL}/api/stakes/${stakeId}/proof`, {
-      method: 'POST',
-      headers,
-      body: formData,
+      method: 'POST', headers, body: formData,
     });
     if (!response.ok) throw new Error('Failed to submit proof');
     return response.json();
@@ -57,33 +43,25 @@ class ApiService {
 
   // Payments
   async createPaymentSheet(stakeAmount) {
-    return this.request('POST', '/api/payments/create-payment-sheet', {
-      amount: stakeAmount,
-    });
+    return this.request('POST', '/api/payments/create-payment-sheet', { amount: stakeAmount });
   }
-
   async createPaymentIntent(stakeAmount) {
-    return this.request('POST', '/api/payments/create-intent', {
-      amount: stakeAmount,
-    });
+    return this.request('POST', '/api/payments/create-intent', { amount: stakeAmount });
   }
-
-  async getPaymentHistory() {
-    return this.request('GET', '/api/payments/history');
-  }
+  async getPaymentHistory() { return this.request('GET', '/api/payments/history'); }
 
   // User
-  async getProfile() {
-    return this.request('GET', '/api/users/me');
-  }
+  async getProfile() { return this.request('GET', '/api/users/me'); }
+  async updateProfile(data) { return this.request('PATCH', '/api/users/me', data); }
+  async getStats() { return this.request('GET', '/api/users/me/stats'); }
 
-  async updateProfile(data) {
-    return this.request('PATCH', '/api/users/me', data);
-  }
-
-  async getStats() {
-    return this.request('GET', '/api/users/me/stats');
-  }
+  // Groups
+  async getMyGroups() { return this.request('GET', '/api/groups'); }
+  async createGroup(data) { return this.request('POST', '/api/groups', data); }
+  async joinGroup(invite_code) { return this.request('POST', '/api/groups/join', { invite_code }); }
+  async getGroup(id) { return this.request('GET', `/api/groups/${id}`); }
+  async getGroupFeed(id) { return this.request('GET', `/api/groups/${id}/feed`); }
+  async leaveGroup(id) { return this.request('DELETE', `/api/groups/${id}/leave`); }
 }
 
 export const api = new ApiService();
