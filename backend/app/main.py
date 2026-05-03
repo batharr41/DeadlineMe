@@ -2,7 +2,7 @@ import asyncio
 from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
-from app.api import stakes, payments, users, groups
+from app.api import stakes, payments, users, groups, challenges
 from app.core.config import settings
 
 
@@ -19,11 +19,9 @@ async def deadline_checker_loop():
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
-    # Start background deadline checker on startup
     task = asyncio.create_task(deadline_checker_loop())
     print("✅ Deadline checker started.")
     yield
-    # Shutdown
     task.cancel()
     try:
         await task
@@ -38,7 +36,6 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-# CORS
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -47,11 +44,11 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Routes
 app.include_router(stakes.router, prefix="/api/stakes", tags=["Stakes"])
 app.include_router(payments.router, prefix="/api/payments", tags=["Payments"])
 app.include_router(users.router, prefix="/api/users", tags=["Users"])
 app.include_router(groups.router, prefix="/api/groups", tags=["Groups"])
+app.include_router(challenges.router, prefix="/api/challenges", tags=["Challenges"])
 
 
 @app.get("/")

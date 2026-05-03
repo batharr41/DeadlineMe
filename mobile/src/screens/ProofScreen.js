@@ -1,71 +1,22 @@
 import React, { useState } from 'react';
-import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, ActivityIndicator } from 'react-native';
+import { View, Text, TouchableOpacity, StyleSheet, Image, Alert, Share } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import * as ImagePicker from 'expo-image-picker';
 import { theme } from '../utils/theme';
 import { api } from '../services/api';
-import { cancelStakeReminders } from '../services/notifications';
-
-const c = theme.colors;
-
-function SuccessState({ stake, result, onDone }) {
-  const amount = stake.stake_amount ?? stake.stake ?? 0;
-  return (
-    <View style={styles.resultContainer}>
-      <View style={styles.successIconWrap}>
-        <Text style={styles.resultEmoji}>✓</Text>
-      </View>
-      <Text style={styles.successTitle}>You kept your word.</Text>
-      <Text style={styles.successSubtitle}>{result.reasoning}</Text>
-
-      <View style={styles.refundCard}>
-        <Text style={styles.refundLabel}>REFUND INITIATED</Text>
-        <Text style={styles.refundAmount}>${amount}</Text>
-        <Text style={styles.refundSub}>Back to your card in 3–5 days</Text>
-      </View>
-
-      <Text style={styles.successMotivation}>
-        That's what follow-through looks like. 🔥
-      </Text>
-
-      <TouchableOpacity style={styles.doneBtn} onPress={onDone}>
-        <Text style={styles.doneBtnText}>Back to Dashboard</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
-
-function FailureState({ stake, result, onDone }) {
-  const amount = stake.stake_amount ?? stake.stake ?? 0;
-  const charity = stake.anti_charity_name || 'your chosen charity';
-  return (
-    <View style={styles.resultContainer}>
-      <View style={styles.failureIconWrap}>
-        <Text style={styles.resultEmoji}>✗</Text>
-      </View>
-      <Text style={styles.failureTitle}>Not verified.</Text>
-      <Text style={styles.failureSubtitle}>{result.reasoning}</Text>
-
-      <View style={styles.tryAgainCard}>
-        <Text style={styles.tryAgainText}>Upload clearer proof or your deadline will expire and ${amount} goes to {charity}.</Text>
-      </View>
-
-      <TouchableOpacity style={styles.retryBtn} onPress={onDone}>
-        <Text style={styles.retryBtnText}>Try Again</Text>
-      </TouchableOpacity>
-    </View>
-  );
-}
 
 export default function ProofScreen({ route, navigation }) {
   const { stake } = route.params;
   const [image, setImage] = useState(null);
   const [submitting, setSubmitting] = useState(false);
-  const [result, setResult] = useState(null);
+  const [result, setResult] = useState(null); // null | { verified, reasoning, confidence }
 
   const pickImage = async () => {
     const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-    if (status !== 'granted') return Alert.alert('Permission needed', 'Allow access to your photo library.');
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'We need camera roll access to upload proof.');
+      return;
+    }
     const res = await ImagePicker.launchImageLibraryAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -76,7 +27,10 @@ export default function ProofScreen({ route, navigation }) {
 
   const takePhoto = async () => {
     const { status } = await ImagePicker.requestCameraPermissionsAsync();
-    if (status !== 'granted') return Alert.alert('Permission needed', 'Allow camera access.');
+    if (status !== 'granted') {
+      Alert.alert('Permission needed', 'We need camera access.');
+      return;
+    }
     const res = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
     if (!res.canceled) setImage(res.assets[0].uri);
   };
@@ -86,79 +40,133 @@ export default function ProofScreen({ route, navigation }) {
     setSubmitting(true);
     try {
       const formData = new FormData();
-      formData.append('proof', { uri: image, type: 'image/jpeg', name: 'proof.jpg' });
-      const res = await api.submitProof(stake.id, formData);
-      setResult(res);
-      if (res.verified) await cancelStakeReminders(stake.id);
+      formData.append('proof', {
+        uri: image,
+        type: 'image/jpeg',
+        name: 'proof.jpg',
+      });
+      const verification = await api.submitProof(stake.id, formData);
+      setResult(verification);
     } catch (err) {
-      Alert.alert('Upload failed', 'Something went wrong. Try again.');
+      Alert.alert('Error', 'Failed to submit proof. Try again.');
     } finally {
       setSubmitting(false);
     }
   };
 
+  const handleShare = async () => {
+    try {
+      await Share.share({
+        message: `🔥 I just crushed my goal on DeadlineMe!\n\n✅ "${stake.title}" — DONE.\n💸 $${stake.stake_amount} saved back to my pocket.\n\nNo excuses. No extensions. No mercy.\n\ndeadline-me.vercel.app`,
+      });
+    } catch (err) {
+      console.error(err);
+    }
+  };
+
+  // ── Success State ──
   if (result?.verified) {
     return (
       <SafeAreaView style={styles.container}>
-        <SuccessState
-          stake={stake}
-          result={result}
-          onDone={() => navigation.navigate('MainTabs')}
-        />
+        <View style={styles.successContainer}>
+          {/* Victory card */}
+          <View style={styles.successCard}>
+            <Text style={styles.successEmoji}>🏆</Text>
+            <Text style={styles.successTitle}>MISSION COMPLETE</Text>
+            <Text style={styles.successGoal}>{stake.title}</Text>
+            <View style={styles.successDivider} />
+            <Text style={styles.successLabel}>REFUNDED</Text>
+            <Text style={styles.successAmount}>${stake.stake_amount}</Text>
+            <Text style={styles.successSub}>Back to your card</Text>
+          </View>
+
+          <Text style={styles.reasoningText}>{result.reasoning}</Text>
+
+          {/* Share button */}
+          <TouchableOpacity style={styles.shareBtn} onPress={handleShare} activeOpacity={0.8}>
+            <Text style={styles.shareBtnText}>🔗 Share Your Win</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.doneBtn}
+            onPress={() => navigation.navigate('MainTabs')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.doneBtnText}>Back to Dashboard</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
 
+  // ── Rejected State ──
   if (result && !result.verified) {
     return (
       <SafeAreaView style={styles.container}>
-        <FailureState
-          stake={stake}
-          result={result}
-          onDone={() => setResult(null)}
-        />
+        <View style={styles.successContainer}>
+          <View style={[styles.successCard, styles.failCard]}>
+            <Text style={styles.successEmoji}>❌</Text>
+            <Text style={[styles.successTitle, { color: '#FF3366' }]}>PROOF REJECTED</Text>
+            <Text style={styles.successGoal}>{stake.title}</Text>
+            <View style={styles.successDivider} />
+            <Text style={styles.reasoningText}>{result.reasoning}</Text>
+          </View>
+
+          <TouchableOpacity
+            style={styles.retryBtn}
+            onPress={() => { setResult(null); setImage(null); }}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.retryBtnText}>Try Again</Text>
+          </TouchableOpacity>
+
+          <TouchableOpacity
+            style={styles.doneBtn}
+            onPress={() => navigation.navigate('MainTabs')}
+            activeOpacity={0.8}
+          >
+            <Text style={styles.doneBtnText}>Back to Dashboard</Text>
+          </TouchableOpacity>
+        </View>
       </SafeAreaView>
     );
   }
 
+  // ── Upload State ──
   return (
     <SafeAreaView style={styles.container}>
       <View style={styles.content}>
+        <TouchableOpacity onPress={() => navigation.goBack()}>
+          <Text style={styles.back}>← Cancel</Text>
+        </TouchableOpacity>
 
-        <View style={styles.topBar}>
-          <TouchableOpacity onPress={() => navigation.goBack()}>
-            <Text style={styles.backText}>← Cancel</Text>
-          </TouchableOpacity>
-        </View>
-
-        <Text style={styles.title}>Prove It.</Text>
-        <Text style={styles.subtitle} numberOfLines={2}>"{stake.title}"</Text>
+        <Text style={styles.title}>Upload Proof 📸</Text>
+        <Text style={styles.subtitle}>Show AI you completed: "{stake.title}"</Text>
 
         {image ? (
           <View style={styles.previewContainer}>
             <Image source={{ uri: image }} style={styles.preview} />
             <TouchableOpacity style={styles.removeBtn} onPress={() => setImage(null)}>
-              <Text style={styles.removeText}>Remove</Text>
+              <Text style={styles.removeText}>✕ Remove</Text>
             </TouchableOpacity>
           </View>
         ) : (
-          <View style={styles.uploadArea}>
-            <TouchableOpacity style={styles.uploadOption} onPress={takePhoto} activeOpacity={0.7}>
-              <Text style={styles.uploadOptionIcon}>📷</Text>
-              <Text style={styles.uploadOptionText}>Take Photo</Text>
+          <View style={styles.uploadOptions}>
+            <TouchableOpacity style={styles.uploadBtn} onPress={takePhoto} activeOpacity={0.7}>
+              <Text style={styles.uploadIcon}>📷</Text>
+              <Text style={styles.uploadLabel}>Take Photo</Text>
             </TouchableOpacity>
-            <View style={styles.uploadDivider} />
-            <TouchableOpacity style={styles.uploadOption} onPress={pickImage} activeOpacity={0.7}>
-              <Text style={styles.uploadOptionIcon}>🖼️</Text>
-              <Text style={styles.uploadOptionText}>Choose from Library</Text>
+            <TouchableOpacity style={styles.uploadBtn} onPress={pickImage} activeOpacity={0.7}>
+              <Text style={styles.uploadIcon}>🖼️</Text>
+              <Text style={styles.uploadLabel}>Choose from Gallery</Text>
             </TouchableOpacity>
           </View>
         )}
 
-        <View style={styles.noteCard}>
-          <Text style={styles.noteTitle}>How verification works</Text>
-          <Text style={styles.noteBody}>
-            AI reviews your image against your goal. Screenshots, photos, results — all valid. Under 30 seconds.
+        <View style={styles.infoBox}>
+          <Text style={styles.infoTitle}>How AI verification works:</Text>
+          <Text style={styles.infoText}>
+            Our AI analyzes your proof image to confirm it matches your stated goal. Most verifications complete in under 30 seconds.
           </Text>
         </View>
 
@@ -168,105 +176,91 @@ export default function ProofScreen({ route, navigation }) {
           style={[styles.submitBtn, (!image || submitting) && styles.submitBtnDisabled]}
           onPress={handleSubmit}
           disabled={!image || submitting}
-          activeOpacity={0.85}
+          activeOpacity={0.8}
         >
-          {submitting ? (
-            <View style={styles.submittingRow}>
-              <ActivityIndicator color="#fff" size="small" />
-              <Text style={styles.submitBtnText}>Verifying...</Text>
-            </View>
-          ) : (
-            <Text style={styles.submitBtnText}>Submit Proof</Text>
-          )}
+          <Text style={styles.submitBtnText}>
+            {submitting ? '🤖 AI is verifying...' : '🔥 Submit for Verification'}
+          </Text>
         </TouchableOpacity>
-
       </View>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: c.bg },
-  content: { flex: 1, paddingHorizontal: 20, paddingBottom: 24 },
+  container: { flex: 1, backgroundColor: '#0A0A0F' },
 
-  topBar: { paddingVertical: 12 },
-  backText: { fontSize: 15, color: c.textSecondary },
-  title: { fontSize: 30, fontWeight: '700', color: c.text, letterSpacing: -1, marginBottom: 6 },
-  subtitle: { fontSize: 14, color: c.textSecondary, marginBottom: 24, fontStyle: 'italic' },
-
-  uploadArea: {
-    backgroundColor: c.surface, borderRadius: 16, borderWidth: 1, borderColor: c.border,
-    overflow: 'hidden', marginBottom: 16,
+  // Upload state
+  content: { flex: 1, paddingHorizontal: 20, paddingTop: 20, paddingBottom: 24 },
+  back: { color: '#8888AA', fontSize: 14, marginBottom: 24 },
+  title: { fontSize: 24, fontWeight: '700', color: '#FFFFFF', marginBottom: 8 },
+  subtitle: { fontSize: 14, color: '#8888AA', marginBottom: 24 },
+  previewContainer: { alignItems: 'center', marginBottom: 24 },
+  preview: { width: '100%', height: 250, borderRadius: 16, marginBottom: 12 },
+  removeBtn: { padding: 8 },
+  removeText: { color: '#FF3366', fontSize: 14 },
+  uploadOptions: { gap: 12, marginBottom: 24 },
+  uploadBtn: {
+    flexDirection: 'row', alignItems: 'center', gap: 12,
+    padding: 20, backgroundColor: '#12121A', borderRadius: 16,
+    borderWidth: 1, borderColor: '#2A2A3A',
   },
-  uploadOption: { flexDirection: 'row', alignItems: 'center', gap: 14, padding: 20 },
-  uploadOptionIcon: { fontSize: 24 },
-  uploadOptionText: { fontSize: 16, fontWeight: '500', color: c.text },
-  uploadDivider: { height: 1, backgroundColor: c.border },
-
-  previewContainer: { marginBottom: 16, gap: 10 },
-  preview: { width: '100%', height: 240, borderRadius: 16 },
-  removeBtn: { alignSelf: 'flex-end' },
-  removeText: { fontSize: 13, color: c.accent },
-
-  noteCard: {
-    backgroundColor: c.surface, borderRadius: 12, padding: 16,
-    borderWidth: 1, borderColor: c.border, gap: 6,
+  uploadIcon: { fontSize: 28 },
+  uploadLabel: { fontSize: 16, color: '#FFFFFF', fontWeight: '500' },
+  infoBox: {
+    backgroundColor: '#12121A', borderRadius: 14, padding: 16,
+    borderWidth: 1, borderColor: '#2A2A3A',
   },
-  noteTitle: { fontSize: 13, fontWeight: '600', color: c.textSecondary },
-  noteBody: { fontSize: 13, color: c.textTertiary, lineHeight: 18 },
-
-  submitBtn: { backgroundColor: c.accent, borderRadius: 14, paddingVertical: 16, alignItems: 'center' },
-  submitBtnDisabled: { backgroundColor: c.surface, borderWidth: 1, borderColor: c.border },
+  infoTitle: { fontSize: 13, fontWeight: '600', color: '#FFFFFF', marginBottom: 6 },
+  infoText: { fontSize: 12, color: '#8888AA', lineHeight: 18 },
+  submitBtn: {
+    padding: 16, backgroundColor: '#FF3366', borderRadius: 14, alignItems: 'center',
+    shadowColor: '#FF3366', shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3, shadowRadius: 12,
+  },
+  submitBtnDisabled: { backgroundColor: '#2A2A3A', shadowOpacity: 0 },
   submitBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
-  submittingRow: { flexDirection: 'row', gap: 10, alignItems: 'center' },
 
-  // Success state
-  resultContainer: {
-    flex: 1, justifyContent: 'center', alignItems: 'center',
-    paddingHorizontal: 28, gap: 16,
+  // Success / fail state
+  successContainer: {
+    flex: 1, paddingHorizontal: 24, paddingTop: 48, paddingBottom: 32,
+    justifyContent: 'center',
   },
-  successIconWrap: {
-    width: 80, height: 80, borderRadius: 24,
-    backgroundColor: 'rgba(52,199,89,0.15)',
-    borderWidth: 2, borderColor: 'rgba(52,199,89,0.3)',
-    alignItems: 'center', justifyContent: 'center',
+  successCard: {
+    backgroundColor: '#12121A', borderRadius: 24, padding: 32,
+    alignItems: 'center', borderWidth: 1, borderColor: 'rgba(0,230,118,0.3)',
+    marginBottom: 24,
+    shadowColor: '#00E676', shadowOffset: { width: 0, height: 0 },
+    shadowOpacity: 0.2, shadowRadius: 20,
   },
-  failureIconWrap: {
-    width: 80, height: 80, borderRadius: 24,
-    backgroundColor: c.accentSoft,
-    borderWidth: 2, borderColor: c.accentBorder,
-    alignItems: 'center', justifyContent: 'center',
+  failCard: {
+    borderColor: 'rgba(255,51,102,0.3)',
+    shadowColor: '#FF3366',
   },
-  resultEmoji: { fontSize: 36, fontWeight: '700', color: c.text },
-  successTitle: { fontSize: 28, fontWeight: '700', color: c.text, letterSpacing: -0.8, textAlign: 'center' },
-  successSubtitle: { fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },
-  failureTitle: { fontSize: 28, fontWeight: '700', color: c.text, letterSpacing: -0.8, textAlign: 'center' },
-  failureSubtitle: { fontSize: 15, color: c.textSecondary, textAlign: 'center', lineHeight: 22 },
-
-  refundCard: {
-    backgroundColor: 'rgba(52,199,89,0.08)', borderRadius: 16, padding: 20,
-    borderWidth: 1, borderColor: 'rgba(52,199,89,0.2)', alignItems: 'center', gap: 4, width: '100%',
+  successEmoji: { fontSize: 56, marginBottom: 16 },
+  successTitle: { fontSize: 22, fontWeight: '900', color: '#00E676', letterSpacing: 2, marginBottom: 8 },
+  successGoal: { fontSize: 16, color: '#FFFFFF', fontWeight: '600', textAlign: 'center', marginBottom: 20 },
+  successDivider: { width: '100%', height: 1, backgroundColor: '#2A2A3A', marginBottom: 20 },
+  successLabel: { fontSize: 11, color: '#8888AA', letterSpacing: 2, marginBottom: 6 },
+  successAmount: { fontSize: 48, fontWeight: '900', color: '#00E676', marginBottom: 4 },
+  successSub: { fontSize: 13, color: '#8888AA' },
+  reasoningText: { fontSize: 13, color: '#8888AA', textAlign: 'center', marginBottom: 16, lineHeight: 20 },
+  shareBtn: {
+    backgroundColor: '#FF3366', borderRadius: 14, paddingVertical: 16,
+    alignItems: 'center', marginBottom: 12,
+    shadowColor: '#FF3366', shadowOffset: { width: 0, height: 6 },
+    shadowOpacity: 0.35, shadowRadius: 12,
   },
-  refundLabel: { fontSize: 10, fontWeight: '700', letterSpacing: 1, color: c.success },
-  refundAmount: { fontSize: 40, fontWeight: '700', color: c.success, letterSpacing: -1 },
-  refundSub: { fontSize: 12, color: c.textTertiary },
-
-  successMotivation: { fontSize: 14, color: c.textTertiary, textAlign: 'center' },
-
-  tryAgainCard: {
-    backgroundColor: c.surface, borderRadius: 14, padding: 16,
-    borderWidth: 1, borderColor: c.border, width: '100%',
-  },
-  tryAgainText: { fontSize: 14, color: c.textSecondary, lineHeight: 20, textAlign: 'center' },
-
+  shareBtnText: { color: '#fff', fontSize: 16, fontWeight: '800', letterSpacing: 0.5 },
   doneBtn: {
-    backgroundColor: c.accent, borderRadius: 14,
-    paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center',
+    borderRadius: 14, paddingVertical: 14, alignItems: 'center',
+    borderWidth: 1, borderColor: '#2A2A3A',
   },
-  doneBtnText: { color: '#fff', fontSize: 16, fontWeight: '700' },
+  doneBtnText: { color: '#8888AA', fontSize: 14, fontWeight: '600' },
   retryBtn: {
-    backgroundColor: c.surface, borderRadius: 14, borderWidth: 1, borderColor: c.border,
-    paddingVertical: 14, paddingHorizontal: 40, width: '100%', alignItems: 'center',
+    backgroundColor: '#1A1A25', borderRadius: 14, paddingVertical: 16,
+    alignItems: 'center', marginBottom: 12,
+    borderWidth: 1, borderColor: '#2A2A3A',
   },
-  retryBtnText: { color: c.text, fontSize: 16, fontWeight: '600' },
+  retryBtnText: { color: '#FFFFFF', fontSize: 16, fontWeight: '700' },
 });

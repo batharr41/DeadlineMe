@@ -17,7 +17,6 @@ class ApiService {
     const headers = await this.getHeaders();
     const config = { method, headers };
     if (body) config.body = JSON.stringify(body);
-
     const response = await fetch(`${API_URL}${endpoint}`, config);
     if (!response.ok) {
       const error = await response.json().catch(() => ({}));
@@ -62,6 +61,12 @@ class ApiService {
   async getGroup(id) { return this.request('GET', `/api/groups/${id}`); }
   async getGroupFeed(id) { return this.request('GET', `/api/groups/${id}/feed`); }
   async leaveGroup(id) { return this.request('DELETE', `/api/groups/${id}/leave`); }
+
+  // Challenges
+  async getGroupChallenges(groupId) { return this.request('GET', `/api/challenges/group/${groupId}`); }
+  async getChallenge(id) { return this.request('GET', `/api/challenges/${id}`); }
+  async createChallenge(data) { return this.request('POST', '/api/challenges', data); }
+  async joinChallenge(id, stakeAmount) { return this.request('POST', `/api/challenges/${id}/join`, { stake_amount: stakeAmount }); }
 }
 
 export const api = new ApiService();
