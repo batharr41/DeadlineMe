@@ -282,7 +282,7 @@ const styles = StyleSheet.create({
     padding: 28, borderWidth: 1, borderColor: theme.colors.border,
   },
   modalTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.text, letterSpacing: 1, marginBottom: 6 },
-  modalSubtitle: { fontSize: 13, color: theme.colors.textMuted, marginBottom: 20 },
+  modalSubtitle: { fontSize: 13, color: '#FFFFFF', marginBottom: 16 },
   modalInput: {
     backgroundColor: theme.colors.inputBg, borderRadius: 12, padding: 16,
     color: '#FFFFFF', fontSize: 16, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 16,
@@ -291,5 +291,7 @@ const styles = StyleSheet.create({
     fontSize: 26, fontWeight: '800', letterSpacing: 8, textAlign: 'center', color: theme.colors.accent,
   },
   cancelBtn: { marginTop: 12, alignItems: 'center' },
-  cancelText: { color: theme.colors.textMuted, fontSize: 14 },
+  cancelText: { color: '#FFFFFF', fontSize: 14 },
 });
+
+
