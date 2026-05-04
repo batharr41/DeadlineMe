@@ -1,272 +1,231 @@
-<p align="center">
-  <img src="mobile/assets/icon.png" width="120" alt="DeadlineMe Logo" />
-</p>
+# 🔥 DeadlineMe
 
-# DeadlineMe
+**Put your money where your goals are.**
 
-**No excuses. No extensions. No mercy.**
-
-DeadlineMe is an AI-powered accountability app that charges you real money when you miss your deadlines. Set a goal, stake cash on it, and if you fail — your money goes to a charity you care about.
+DeadlineMe is an AI-powered accountability app that charges you real money when you miss your deadlines. Set a goal, stake cash, and if you fail — your money goes to a cause you hate.
 
 ## How It Works
 
 1. **Set a goal** with a specific deadline
 2. **Stake real money** ($1–$500) on it
-3. **AI checks in** with reminders before your deadline
-4. **Upload proof** (screenshot, photo, link) when you're done
-5. **AI verifies** your completion
-6. ✅ **Hit it?** Get your money back in full
-7. 🤲 **Miss it?** Your loss becomes someone's gain — money goes to charity
+3. **AI verifies** your proof of completion
+4. ✅ **Hit it?** Get your money back
+5. ❌ **Miss it?** Your money goes to an anti-charity you chose
 
----
+## What's Built
+
+### Core Stake Engine
+- Create a stake with title, category, deadline, and amount
+- Stripe payment sheet authorizes funds at creation (manual capture)
+- Deadline checker runs every 60 seconds — auto-fails expired stakes
+- Upload proof image → OpenAI Vision verifies completion → refund or forfeit
+- Cancel within 60 minutes: full refund. After 60 minutes: 50% forfeit
+
+### Social / Groups
+- Create or join accountability squads with invite codes
+- Operational log shows squad activity in real time
+- Group Challenges — create shared goals, everyone stakes to join, AI verifies individually
+- Challenges auto-expire, organized into Active / Results / Expired sections
+- Admin controls: remove members, transfer admin, delete group
+- Any member can leave at any time
+
+### Profiles & Stats
+- Unique `@username` set on first login
+- Live stats: hit rate, total staked, saved, lost, streak
+- Squad integrity score across group members
+
+### Payments
+- Stripe payment sheet (test mode, ready for live)
+- Manual capture — funds held until deadline resolves
+- Platform fee: 5% on forfeitures
+- Full payment history on profile
+
+### AI Verification
+- OpenAI Vision (gpt-4o-mini) analyzes proof images
+- Returns verified/confidence/reasoning
+- Flags ambiguous proofs for manual review
+
+### Landing Page
+- Live at [deadline-me.vercel.app](https://deadline-me.vercel.app)
+- Email waitlist saves to Supabase
 
 ## Tech Stack
 
-### Mobile (React Native + Expo)
-- **Framework:** React Native with Expo SDK 54
-- **Navigation:** React Navigation v6 (stack + bottom tabs)
-- **State:** React Context + hooks
-- **Notifications:** expo-notifications (local)
-- **Payments:** Stripe React Native SDK
+### Mobile
+- React Native + Expo SDK 54
+- React Navigation v6 (stack + bottom tabs)
+- Stripe React Native SDK
+- Supabase JS (auth + SecureStore)
+- Expo Image Picker, Expo Notifications
 
-### Backend (Python + FastAPI)
-- **Framework:** FastAPI
-- **Database:** Supabase (PostgreSQL)
-- **Auth:** Supabase Auth (email, no confirmation required)
-- **Payments:** Stripe (test keys, manual capture flow)
-- **AI Verification:** OpenAI Vision API (gpt-4o-mini)
-- **Task Queue:** asyncio background task (deadline checker every 60s)
-- **Hosting:** Railway (auto-deploys from main)
+### Backend
+- FastAPI + Python 3.11
+- Supabase (PostgreSQL + Auth + Storage)
+- Stripe (payments, refunds, manual capture)
+- OpenAI Vision API
+- Asyncio background loop (deadline checker, every 60s)
+- Docker + Railway
 
----
+### Infrastructure
+- Backend: Railway (auto-deploy from GitHub)
+- Landing page: Vercel (auto-deploy from GitHub)
+- Database: Supabase (PostgreSQL, RLS enabled)
+- Storage: Supabase Storage (proof images)
 
 ## Project Structure
 
 ```
 deadlineme/
-├── mobile/
-│   ├── index.js
+├── mobile/                        # React Native + Expo
 │   ├── App.js
 │   ├── app.json
 │   ├── package.json
 │   └── src/
 │       ├── screens/
-│       │   ├── SplashScreen.js
+│       │   ├── SplashScreen.js        # SVG logo, onboarding
 │       │   ├── SignInScreen.js
 │       │   ├── SignUpScreen.js
-│       │   ├── DashboardScreen.js
-│       │   ├── StatsScreen.js
-│       │   ├── ProfileScreen.js
-│       │   ├── NewStakeScreen.js
-│       │   ├── StakeDetailScreen.js
-│       │   ├── ProofScreen.js
-│       │   ├── GroupsScreen.js
-│       │   ├── GroupDetailScreen.js
-│       │   └── CreateGroupScreen.js
+│       │   ├── UsernameScreen.js      # First-login username setup
+│       │   ├── DashboardScreen.js     # Live countdown stakes
+│       │   ├── NewStakeScreen.js      # 4-step stake creation + Stripe
+│       │   ├── StakeDetailScreen.js   # Cancel, upload proof
+│       │   ├── ProofScreen.js         # AI verification + share card
+│       │   ├── StatsScreen.js         # History + survival rate
+│       │   ├── ProfileScreen.js       # Stats + financial audit
+│       │   ├── GroupsScreen.js        # Squad list + join modal
+│       │   ├── GroupDetailScreen.js   # Mission control + admin tools
+│       │   ├── CreateGroupScreen.js
+│       │   ├── GroupChallengesScreen.js
+│       │   ├── CreateChallengeScreen.js
+│       │   └── ChallengeDetailScreen.js
 │       ├── navigation/
-│       │   └── RootNavigator.js
+│       │   └── RootNavigator.js       # Auth + App stacks, bottom tabs
 │       ├── hooks/
-│       │   └── useAuth.js
+│       │   └── useAuth.js             # Supabase auth context
 │       ├── services/
-│       │   ├── api.js
-│       │   ├── supabase.js
-│       │   └── notifications.js
+│       │   ├── api.js                 # All backend API calls
+│       │   └── supabase.js            # Supabase client + SecureStore
 │       └── utils/
-│           └── theme.js
+│           └── theme.js               # Design system, colors, categories
 ├── backend/
 │   ├── app/
-│   │   ├── main.py
+│   │   ├── main.py                    # FastAPI app + deadline checker loop
 │   │   ├── api/
-│   │   │   ├── stakes.py
-│   │   │   ├── payments.py
-│   │   │   ├── users.py
-│   │   │   └── groups.py
+│   │   │   ├── stakes.py              # Stake CRUD, cancel, proof upload
+│   │   │   ├── payments.py            # Stripe payment sheet + webhooks
+│   │   │   ├── users.py               # Profile, stats, username check
+│   │   │   ├── groups.py              # Groups, members, admin controls
+│   │   │   └── challenges.py          # Group challenges + join with stake
 │   │   ├── core/
-│   │   │   ├── config.py
-│   │   │   └── deps.py
+│   │   │   ├── config.py              # Pydantic settings
+│   │   │   └── deps.py                # Auth dependency, Supabase client
 │   │   ├── schemas/
-│   │   │   └── schemas.py
+│   │   │   └── schemas.py             # Pydantic request/response models
 │   │   └── services/
-│   │       ├── stripe_service.py
-│   │       ├── ai_verification.py
-│   │       └── deadline_checker.py
+│   │       ├── stripe_service.py      # Capture, refund, cancel
+│   │       ├── ai_verification.py     # OpenAI Vision proof check
+│   │       └── deadline_checker.py    # Expire stakes, capture funds
 │   ├── requirements.txt
 │   └── Dockerfile
-└── README.md
+└── landing/                           # Vercel landing page
 ```
 
----
+## Database Schema
 
-## Current Status
-
-### ✅ Working End-to-End
-- Email auth (Supabase, no email confirmation required)
-- Create stake → Stripe payment sheet → DB insert → dashboard refresh
-- Cancel stake (60-min grace = free refund, after = 50% forfeit to charity)
-- Deadline checker runs every 60s as asyncio background task
-- Expired stakes auto-fail, payment captured, moved to history
-- Proof upload → real OpenAI Vision verification → refund or reject
-- Local notifications (3 reminders: 24h / 1h / at deadline)
-- Streaks (completed = +1, failed/exit after grace = break)
-- Bottom tabs: Stakes | History | Groups | Profile
-- Stats screen: survival rate, HIT/MISS breakdown by category, recent history
-- Profile screen: lifetime stats, financial audit, sign out
-- **Group Accountability** — create squads, join by invite code, live activity feed (stake created/completed/failed events), squad integrity score, member leaderboard
-- Backend deployed on Railway, mobile points at Railway URL
-- App icon: D-as-stopwatch neon red logo
-
-### ⏳ Not Yet Built
-- Stripe live mode (currently on test keys — requires Stripe identity verification)
-- Charity payout pipeline (biggest unresolved item — legal + Stripe Connect setup)
-- Apple Developer account ($99) + EAS Build + TestFlight
-- Remote push notifications (requires EAS Build)
-- Group challenges (everyone stakes on the same goal)
-- Production monitoring (Sentry)
-- Landing page / waitlist
-
----
+| Table | Purpose |
+|-------|---------|
+| `profiles` | Extends auth.users — username, stats, Stripe customer ID |
+| `stakes` | Core table — goal, amount, deadline, status, Stripe intent ID |
+| `groups` | Accountability squads with invite codes |
+| `group_members` | Members with admin/member roles |
+| `group_events` | Activity feed — stake created/completed/failed, member joined |
+| `group_challenges` | Shared goals with deadline and min stake |
+| `challenge_participants` | Who joined each challenge, their stake and status |
+| `waitlist` | Landing page email signups |
 
 ## Getting Started
 
 ### Prerequisites
 - Node.js 18+
 - Python 3.11+
-- Supabase account
+- Expo CLI: `npm install -g expo-cli`
+- Supabase account + project
 - Stripe account (test keys)
 - OpenAI API key
 
 ### Mobile
+
 ```bash
 cd mobile
 npm install
-npx expo start --tunnel
+cp .env.example .env   # Add your keys
+npx expo start --tunnel --clear
 ```
 
-### Backend (local dev)
+### Backend
+
 ```bash
 cd backend
 python -m venv venv
-source venv/bin/activate  # Windows: venv\Scripts\activate
+source venv/bin/activate   # Windows: venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env
-uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
+cp .env.example .env       # Add your keys
+uvicorn app.main:app --reload
 ```
-
----
 
 ## Environment Variables
 
-**Backend (`backend/.env`):**
+**Backend `.env`**
 ```
 SUPABASE_URL=
 SUPABASE_SERVICE_ROLE_KEY=
+DATABASE_URL=
 STRIPE_SECRET_KEY=
+STRIPE_PUBLISHABLE_KEY=
 STRIPE_WEBHOOK_SECRET=
 OPENAI_API_KEY=
-DATABASE_URL=
 APP_SECRET_KEY=
 APP_ENV=development
 ```
 
-**Mobile (`mobile/.env`):**
+**Mobile `.env`**
 ```
 EXPO_PUBLIC_SUPABASE_URL=
 EXPO_PUBLIC_SUPABASE_ANON_KEY=
-EXPO_PUBLIC_API_URL=https://deadlineme-production.up.railway.app
+EXPO_PUBLIC_STRIPE_PUBLISHABLE_KEY=
+EXPO_PUBLIC_API_URL=http://localhost:8000
 ```
 
----
+## Deployment
 
-## Database Schema
-
-| Table | Purpose |
-|-------|---------|
-| `profiles` | Extends Supabase auth, holds streak + lifetime stats |
-| `stakes` | Core table — goal, amount, deadline, status, Stripe intent ID |
-| `groups` | Accountability squads with auto-generated invite codes |
-| `group_members` | Join table with admin/member roles |
-| `group_events` | Activity feed — stake_created, stake_completed, stake_failed, member_joined |
-
-All tables have Row Level Security (RLS) enabled.
-
----
-
-## Charity System
-
-On failure, stakes go to verified charities across 7 categories:
-
-| Category | Charities |
-|----------|-----------|
-| 🌍 Humanitarian Aid | Doctors Without Borders, Red Cross, UNICEF, Islamic Relief USA |
-| 🤲 Poverty Relief | GiveDirectly, Zakat Foundation, Penny Appeal |
-| 📖 Education | Room to Read, Khan Academy, DonorsChoose |
-| 🏥 Health & Medical | St. Jude, ACS, NAMI |
-| 🌱 Environment | WWF, Nature Conservancy |
-| 🐾 Animals | ASPCA, Best Friends |
-| ✨ Surprise Me | Random selection |
-
----
+- **Backend:** Railway — root directory `/backend`, auto-deploys from `main`
+- **Landing page:** Vercel — root directory `/landing`, auto-deploys from `main`
+- **Database:** Supabase (managed Postgres)
 
 ## Monetization
 
 - **Free tier:** 1 active stake at a time
 - **Pro ($7.99/mo):** Unlimited stakes, AI check-ins, streak tracking, analytics
-- **Transaction fee:** 5% on all captured stakes (failures)
-
----
-
-## API Endpoints
-
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| `POST` | `/api/stakes` | Create stake + authorize payment |
-| `GET` | `/api/stakes` | Get user's stakes |
-| `POST` | `/api/stakes/{id}/proof` | Submit proof for AI verification |
-| `POST` | `/api/payments/create-payment-sheet` | Stripe payment sheet |
-| `GET` | `/api/users/me` | Get profile |
-| `GET` | `/api/users/me/stats` | Get accountability stats |
-| `POST` | `/api/groups` | Create group |
-| `POST` | `/api/groups/join` | Join group by invite code |
-| `GET` | `/api/groups` | Get my groups |
-| `GET` | `/api/groups/{id}` | Group detail + members |
-| `GET` | `/api/groups/{id}/feed` | Group activity feed |
-| `DELETE` | `/api/groups/{id}/leave` | Leave group |
-
----
-
-## Deployment
-
-- **Backend:** Railway — auto-deploys from `main` branch, root directory `/backend`
-- **Mobile:** Expo Go for beta, EAS Build for App Store (not yet set up)
-
----
+- **Transaction fee:** 5% on all forfeitures
 
 ## Roadmap
 
-### Done
-- [x] Auth (email, no confirmation)
+- [x] Auth (Supabase email + username onboarding)
 - [x] Create / view / cancel stakes
 - [x] Stripe payment sheet (test mode)
-- [x] Deadline checker (background task)
-- [x] Real OpenAI Vision verification
-- [x] Local push notifications
-- [x] Streak tracking
-- [x] Stats screen + bottom tabs
-- [x] Railway deployment
-- [x] Full UI redesign (dark, intense, live countdown)
-- [x] App icon
-- [x] Group accountability (squads, invite codes, activity feed)
-
-### Next
+- [x] AI proof verification (OpenAI Vision)
+- [x] Auto-expire deadlines (background loop)
+- [x] Share card on completion
+- [x] Streak tracking + stats
+- [x] Group accountability squads
+- [x] Group challenges with individual stakes
+- [x] Admin controls (remove member, delete group, transfer admin)
+- [x] Landing page + waitlist
+- [ ] Push notifications (requires EAS Build)
+- [ ] Pro tier paywall ($7.99/mo)
 - [ ] Stripe live mode
-- [ ] Charity payout pipeline (Stripe Connect)
-- [ ] Group challenges (shared goal, everyone stakes)
-- [ ] Apple Developer account + EAS Build + TestFlight
-- [ ] Landing page + waitlist
-- [ ] App Store listing
-
----
+- [ ] App Store / TestFlight
 
 ## Author
 
-Bilal Athar — [github.com/batharr41](https://github.com/batharr41)
+Bilal Athar — [@batharr41](https://github.com/batharr41)
