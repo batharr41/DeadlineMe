@@ -11,12 +11,82 @@ function timeLeft(deadline) {
   const diff = new Date(deadline) - new Date();
   if (diff <= 0) return 'EXPIRED';
   const h = Math.floor(diff / 3600000);
-  if (h >= 24) {
-    const d = Math.floor(h / 24);
-    return `${d}d ${h % 24}h left`;
-  }
+  if (h >= 24) { const d = Math.floor(h / 24); return `${d}d ${h % 24}h left`; }
   const m = Math.floor((diff % 3600000) / 60000);
   return `${h}h ${m}m left`;
+}
+
+function ChallengeCard({ c, onPress, dimmed }) {
+  const tl = timeLeft(c.deadline);
+  const expired = tl === 'EXPIRED' || c.status === 'expired';
+
+  // Work out pass/fail counts
+  const completed = (c.participants || []).filter(p => p.status === 'completed').length;
+  const failed = (c.participants || []).filter(p => p.status === 'failed').length;
+  const total = c.participant_count || 0;
+
+  return (
+    <TouchableOpacity
+      style={[styles.card, dimmed && { opacity: 0.6 }]}
+      onPress={onPress}
+      activeOpacity={0.75}
+    >
+      <View style={[styles.cardAccent, expired && { backgroundColor: '#555570' }]} />
+      <View style={styles.cardInner}>
+        <View style={styles.cardTop}>
+          <Text style={styles.cardTitle}>{c.title}</Text>
+          <View style={[
+            styles.statusBadge,
+            expired && styles.statusExpired,
+            c.status === 'completed' && styles.statusCompleted,
+          ]}>
+            <Text style={[
+              styles.statusText,
+              expired && { color: '#8888AA' },
+              c.status === 'completed' && { color: '#00E676' },
+            ]}>
+              {expired ? 'EXPIRED' : c.status.toUpperCase()}
+            </Text>
+          </View>
+        </View>
+
+        <View style={styles.cardMeta}>
+          <Text style={[styles.metaText, expired && { color: '#555570' }]}>
+            ⏰ {expired ? 'EXPIRED' : tl}
+          </Text>
+          <Text style={styles.metaText}>👥 {total} joined</Text>
+          <Text style={styles.metaText}>Min ${c.min_stake}</Text>
+        </View>
+
+        {/* Pass/fail bar if anyone participated */}
+        {total > 0 && (
+          <View style={styles.resultRow}>
+            {completed > 0 && (
+              <View style={styles.resultBadge}>
+                <Text style={styles.resultPass}>✓ {completed} passed</Text>
+              </View>
+            )}
+            {failed > 0 && (
+              <View style={styles.resultBadge}>
+                <Text style={styles.resultFail}>✗ {failed} failed</Text>
+              </View>
+            )}
+            {total - completed - failed > 0 && (
+              <View style={styles.resultBadge}>
+                <Text style={styles.resultActive}>⏳ {total - completed - failed} active</Text>
+              </View>
+            )}
+          </View>
+        )}
+
+        {c.user_joined && !expired && (
+          <View style={styles.joinedBadge}>
+            <Text style={styles.joinedText}>✓ YOU'RE IN</Text>
+          </View>
+        )}
+      </View>
+    </TouchableOpacity>
+  );
 }
 
 export default function GroupChallengesScreen({ route, navigation }) {
@@ -39,9 +109,8 @@ export default function GroupChallengesScreen({ route, navigation }) {
 
   useEffect(() => {
     load();
-    // Reload when returning from CreateChallenge
-    const unsubscribe = navigation.addListener('focus', load);
-    return unsubscribe;
+    const unsub = navigation.addListener('focus', load);
+    return unsub;
   }, [load, navigation]);
 
   if (loading) {
@@ -51,6 +120,15 @@ export default function GroupChallengesScreen({ route, navigation }) {
       </View>
     );
   }
+
+  const active = challenges.filter(c => c.status === 'active' && timeLeft(c.deadline) !== 'EXPIRED');
+  const expired = challenges.filter(c => c.status === 'expired' || timeLeft(c.deadline) === 'EXPIRED');
+
+  // Split expired into those with participants (has results) vs empty
+  const withResults = expired.filter(c => (c.participant_count || 0) > 0);
+  const noResults = expired.filter(c => (c.participant_count || 0) === 0);
+
+  const goToDetail = (c) => navigation.navigate('ChallengeDetail', { challengeId: c.id, groupName });
 
   return (
     <SafeAreaView style={styles.container}>
@@ -84,36 +162,37 @@ export default function GroupChallengesScreen({ route, navigation }) {
             </TouchableOpacity>
           </View>
         ) : (
-          challenges.map((c) => (
-            <TouchableOpacity
-              key={c.id}
-              style={styles.challengeCard}
-              onPress={() => navigation.navigate('ChallengeDetail', { challengeId: c.id, groupName })}
-              activeOpacity={0.75}
-            >
-              <View style={styles.cardAccent} />
-              <View style={styles.cardInner}>
-                <View style={styles.cardTop}>
-                  <Text style={styles.cardTitle}>{c.title}</Text>
-                  <View style={[styles.statusBadge, c.status === 'expired' && styles.statusExpired]}>
-                    <Text style={[styles.statusText, c.status === 'expired' && { color: '#8888AA' }]}>
-                      {c.status.toUpperCase()}
-                    </Text>
-                  </View>
-                </View>
-                <View style={styles.cardMeta}>
-                  <Text style={styles.metaText}>⏰ {timeLeft(c.deadline)}</Text>
-                  <Text style={styles.metaText}>👥 {c.participant_count} joined</Text>
-                  <Text style={styles.metaText}>Min ${c.min_stake}</Text>
-                </View>
-                {c.user_joined && (
-                  <View style={styles.joinedBadge}>
-                    <Text style={styles.joinedText}>✓ YOU'RE IN</Text>
-                  </View>
-                )}
-              </View>
-            </TouchableOpacity>
-          ))
+          <>
+            {/* Active */}
+            {active.length > 0 && (
+              <>
+                <Text style={styles.sectionHeader}>🔥 ACTIVE ({active.length})</Text>
+                {active.map(c => (
+                  <ChallengeCard key={c.id} c={c} onPress={() => goToDetail(c)} />
+                ))}
+              </>
+            )}
+
+            {/* Completed with results */}
+            {withResults.length > 0 && (
+              <>
+                <Text style={styles.sectionHeader}>📋 RESULTS ({withResults.length})</Text>
+                {withResults.map(c => (
+                  <ChallengeCard key={c.id} c={c} onPress={() => goToDetail(c)} dimmed />
+                ))}
+              </>
+            )}
+
+            {/* Expired with no one joined — show collapsed */}
+            {noResults.length > 0 && (
+              <>
+                <Text style={styles.sectionHeader}>💨 EXPIRED — NO TAKERS ({noResults.length})</Text>
+                {noResults.map(c => (
+                  <ChallengeCard key={c.id} c={c} onPress={() => goToDetail(c)} dimmed />
+                ))}
+              </>
+            )}
+          </>
         )}
 
         <View style={{ height: 80 }} />
@@ -136,11 +215,13 @@ const styles = StyleSheet.create({
   scroll: { paddingHorizontal: 20, paddingTop: 24 },
   groupName: { fontSize: 24, fontWeight: '800', color: '#FFFFFF', marginBottom: 4 },
   subtitle: { fontSize: 11, color: '#8888AA', letterSpacing: 2, marginBottom: 24 },
-  empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
-  emptyIcon: { fontSize: 48 },
-  emptyTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1 },
-  emptyText: { fontSize: 14, color: '#8888AA', textAlign: 'center' },
-  challengeCard: {
+
+  sectionHeader: {
+    fontSize: 12, fontWeight: '800', color: '#8888AA',
+    letterSpacing: 1.5, marginBottom: 12, marginTop: 8,
+  },
+
+  card: {
     flexDirection: 'row', backgroundColor: '#12121A',
     borderRadius: 16, marginBottom: 12,
     borderWidth: 1, borderColor: '#2A2A3A', overflow: 'hidden',
@@ -155,15 +236,29 @@ const styles = StyleSheet.create({
     borderWidth: 1, borderColor: 'rgba(255,51,102,0.3)',
   },
   statusExpired: { backgroundColor: 'rgba(136,136,170,0.1)', borderColor: 'rgba(136,136,170,0.2)' },
+  statusCompleted: { backgroundColor: 'rgba(0,230,118,0.1)', borderColor: 'rgba(0,230,118,0.3)' },
   statusText: { fontSize: 10, fontWeight: '800', color: '#FF3366', letterSpacing: 0.5 },
+
   cardMeta: { flexDirection: 'row', gap: 16, flexWrap: 'wrap', marginBottom: 8 },
   metaText: { fontSize: 12, color: '#8888AA' },
+
+  resultRow: { flexDirection: 'row', gap: 8, flexWrap: 'wrap', marginTop: 4 },
+  resultBadge: { paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6, backgroundColor: '#1C1C28' },
+  resultPass: { fontSize: 11, fontWeight: '700', color: '#00E676' },
+  resultFail: { fontSize: 11, fontWeight: '700', color: '#FF3366' },
+  resultActive: { fontSize: 11, fontWeight: '700', color: '#FFB300' },
+
   joinedBadge: {
     alignSelf: 'flex-start', backgroundColor: 'rgba(0,230,118,0.1)',
     borderRadius: 6, paddingHorizontal: 8, paddingVertical: 3,
-    borderWidth: 1, borderColor: 'rgba(0,230,118,0.3)',
+    borderWidth: 1, borderColor: 'rgba(0,230,118,0.3)', marginTop: 4,
   },
   joinedText: { fontSize: 10, fontWeight: '800', color: '#00E676', letterSpacing: 0.5 },
+
+  empty: { alignItems: 'center', paddingTop: 60, gap: 12 },
+  emptyIcon: { fontSize: 48 },
+  emptyTitle: { fontSize: 20, fontWeight: '800', color: '#FFFFFF', letterSpacing: 1 },
+  emptyText: { fontSize: 14, color: '#8888AA', textAlign: 'center' },
   btnPrimary: {
     backgroundColor: '#FF3366', borderRadius: 12,
     paddingVertical: 16, paddingHorizontal: 32, alignItems: 'center',

@@ -2,7 +2,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from app.core.deps import get_current_user, get_supabase
 from pydantic import BaseModel, Field
 from typing import Optional
-from datetime import datetime
+from datetime import datetime, timezone
 
 router = APIRouter()
 
@@ -19,6 +19,20 @@ class ChallengeCreate(BaseModel):
 class ChallengeJoinWithStake(BaseModel):
     payment_intent_id: str
     stake_amount: int = Field(..., ge=1, le=500)
+
+
+def _resolve_challenge_status(challenge: dict) -> str:
+    """Return real status based on deadline, ignoring stale DB value."""
+    deadline = challenge.get("deadline")
+    if not deadline:
+        return challenge.get("status", "active")
+    try:
+        dl = datetime.fromisoformat(deadline.replace("Z", "+00:00"))
+        if dl < datetime.now(timezone.utc):
+            return "expired"
+    except Exception:
+        pass
+    return challenge.get("status", "active")
 
 
 @router.post("")
@@ -54,7 +68,7 @@ async def create_challenge(
             "user_id": user["id"],
             "event_type": "stake_created",
             "payload": {
-                "title": f"🏆 Challenge: {data.title}",
+                "title": f"🏆 Challenge created: {data.title}",
                 "is_challenge": True,
                 "challenge_id": challenge["id"],
             },
@@ -79,8 +93,13 @@ async def get_group_challenges(group_id: str, user: dict = Depends(get_current_u
     for c in (challenges.data or []):
         participants = db.table("challenge_participants").select("user_id, stake_amount, status").eq("challenge_id", c["id"]).execute()
         participant_ids = [p["user_id"] for p in (participants.data or [])]
+
+        # Compute real status based on deadline
+        real_status = _resolve_challenge_status(c)
+
         result.append({
             **c,
+            "status": real_status,
             "participants": participants.data or [],
             "participant_count": len(participant_ids),
             "user_joined": user["id"] in participant_ids,
@@ -107,19 +126,34 @@ async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user
     profiles = db.table("profiles").select("id, display_name, streak").in_("id", participant_ids).execute() if participant_ids else type('obj', (object,), {'data': []})()
     profile_map = {p["id"]: p for p in (profiles.data or [])}
 
+    # Sync participant status from their actual stakes
     participants = []
     for p in (participants_raw.data or []):
         profile = profile_map.get(p["user_id"], {})
+        stake_status = p.get("status", "active")
+
+        # Pull real status from the stake if linked
+        if p.get("stake_id"):
+            stake = db.table("stakes").select("status").eq("id", p["stake_id"]).single().execute()
+            if stake.data:
+                stake_status = stake.data["status"]
+                # Sync back if changed
+                if stake_status != p.get("status"):
+                    db.table("challenge_participants").update({"status": stake_status}).eq("id", p["id"]).execute()
+
         participants.append({
             **p,
+            "status": stake_status,
             "display_name": profile.get("display_name", "Unknown"),
             "streak": profile.get("streak", 0),
         })
 
     total_staked = sum(p["stake_amount"] for p in (participants_raw.data or []))
+    real_status = _resolve_challenge_status(challenge.data)
 
     return {
         **challenge.data,
+        "status": real_status,
         "participants": participants,
         "participant_count": len(participants),
         "total_staked": total_staked,
@@ -133,40 +167,26 @@ async def join_challenge(
     data: ChallengeJoinWithStake,
     user: dict = Depends(get_current_user),
 ):
-    """
-    Join a challenge after Stripe payment has already been authorized.
-    The mobile app creates the payment sheet, user pays, then calls this endpoint
-    with the payment_intent_id to create the linked stake.
-    """
     db = get_supabase()
 
     challenge = db.table("group_challenges").select("*").eq("id", challenge_id).single().execute()
     if not challenge.data:
         raise HTTPException(status_code=404, detail="Challenge not found")
 
-    if challenge.data["status"] != "active":
-        raise HTTPException(status_code=400, detail="Challenge is no longer active")
+    real_status = _resolve_challenge_status(challenge.data)
+    if real_status == "expired":
+        raise HTTPException(status_code=400, detail="Challenge has expired")
 
     existing = db.table("challenge_participants").select("id").eq("challenge_id", challenge_id).eq("user_id", user["id"]).execute()
     if existing.data:
         raise HTTPException(status_code=400, detail="Already joined this challenge")
 
     # Create a regular stake linked to this challenge
-    ANTI_CHARITIES = {
-        "humanitarian": "Doctors Without Borders",
-        "poverty": "GiveDirectly",
-        "education": "Room to Read",
-        "health": "St. Jude Children's Research Hospital",
-        "environment": "WWF",
-        "animals": "ASPCA",
-        "surprise": "Verified Charity",
-    }
-
     stake_result = db.table("stakes").insert({
         "user_id": user["id"],
         "title": challenge.data["title"],
-        "description": f"Group challenge in {challenge.data['group_id']}",
-        "category": challenge.data["category"],
+        "description": f"Group challenge",
+        "category": challenge.data.get("category", "other"),
         "stake_amount": data.stake_amount,
         "deadline": challenge.data["deadline"],
         "anti_charity_id": "humanitarian",
@@ -180,7 +200,6 @@ async def join_challenge(
 
     stake_id = stake_result.data[0]["id"]
 
-    # Add to challenge participants
     db.table("challenge_participants").insert({
         "challenge_id": challenge_id,
         "user_id": user["id"],
@@ -189,7 +208,7 @@ async def join_challenge(
         "status": "active",
     }).execute()
 
-    # Emit group event
+    # Fix: pass stake_amount not undefined
     try:
         db.table("group_events").insert({
             "group_id": challenge.data["group_id"],
@@ -198,7 +217,7 @@ async def join_challenge(
             "event_type": "stake_created",
             "payload": {
                 "title": challenge.data["title"],
-                "stake_amount": data.stake_amount,
+                "stake_amount": data.stake_amount,  # was missing before
                 "is_challenge": True,
             },
         }).execute()

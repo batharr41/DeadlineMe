@@ -14,10 +14,7 @@ function timeLeft(deadline) {
   const h = Math.floor(diff / 3600000);
   const m = Math.floor((diff % 3600000) / 60000);
   const s = Math.floor((diff % 60000) / 1000);
-  if (h >= 24) {
-    const d = Math.floor(h / 24);
-    return `${d}d ${h % 24}h left`;
-  }
+  if (h >= 24) { const d = Math.floor(h / 24); return `${d}d ${h % 24}h left`; }
   return `${String(h).padStart(2,'0')}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')} left`;
 }
 
@@ -54,7 +51,6 @@ export default function ChallengeDetailScreen({ route, navigation }) {
   }, [challengeId]);
 
   useEffect(() => { load(); }, [load]);
-
   useEffect(() => {
     if (!challenge) return;
     const interval = setInterval(() => setCountdown(timeLeft(challenge.deadline)), 1000);
@@ -65,10 +61,17 @@ export default function ChallengeDetailScreen({ route, navigation }) {
     if (!challenge) return;
     setAccepting(true);
     try {
-      // 1. Create payment sheet at the min stake amount (same as regular stake)
-      const { clientSecret, paymentIntentId } = await api.createPaymentSheet(challenge.min_stake);
+      // Use create-intent which has known field names: client_secret + payment_intent_id
+      const intentData = await api.createPaymentIntent(challenge.min_stake);
+      const clientSecret = intentData.client_secret;
+      const paymentIntentId = intentData.payment_intent_id;
 
-      // 2. Init Stripe payment sheet
+      if (!clientSecret) {
+        Alert.alert('Error', 'Could not initialize payment. Try again.');
+        setAccepting(false);
+        return;
+      }
+
       const { error: initError } = await initPaymentSheet({
         paymentIntentClientSecret: clientSecret,
         merchantDisplayName: 'DeadlineMe',
@@ -81,7 +84,6 @@ export default function ChallengeDetailScreen({ route, navigation }) {
         return;
       }
 
-      // 3. Present payment sheet
       const { error: paymentError } = await presentPaymentSheet();
 
       if (paymentError) {
@@ -92,7 +94,7 @@ export default function ChallengeDetailScreen({ route, navigation }) {
         return;
       }
 
-      // 4. Payment succeeded — create the stake linked to the challenge
+      // Payment succeeded — register with challenge
       await api.joinChallengeWithStake(challengeId, {
         payment_intent_id: paymentIntentId,
         stake_amount: challenge.min_stake,
@@ -100,7 +102,7 @@ export default function ChallengeDetailScreen({ route, navigation }) {
 
       Alert.alert(
         '🏆 You\'re In!',
-        `$${challenge.min_stake} staked on "${challenge.title}". Upload proof before the deadline or lose it.`,
+        `$${challenge.min_stake} staked on "${challenge.title}". Upload proof before the deadline.`,
         [{ text: 'Got it', onPress: () => load() }]
       );
 
@@ -143,13 +145,10 @@ export default function ChallengeDetailScreen({ route, navigation }) {
         <Text style={styles.title}>{challenge.title}</Text>
         {challenge.description ? <Text style={styles.description}>{challenge.description}</Text> : null}
 
-        {/* Stats */}
         <View style={styles.statsRow}>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>TIME LEFT</Text>
-            <Text style={[styles.statValue, { fontSize: 18 }, isExpired && { color: '#8888AA' }]}>
-              {countdown}
-            </Text>
+            <Text style={[styles.statValue, { fontSize: 18 }, isExpired && { color: '#8888AA' }]}>{countdown}</Text>
           </View>
           <View style={styles.statCard}>
             <Text style={styles.statLabel}>POOL</Text>
@@ -168,7 +167,6 @@ export default function ChallengeDetailScreen({ route, navigation }) {
           </View>
         </View>
 
-        {/* How it works callout */}
         {!challenge.user_joined && !isExpired && (
           <View style={styles.howItWorks}>
             <Text style={styles.howTitle}>HOW IT WORKS</Text>
@@ -178,7 +176,6 @@ export default function ChallengeDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Accept button — one tap, goes straight to Stripe */}
         {!challenge.user_joined && !isExpired && (
           <TouchableOpacity
             style={[styles.acceptBtn, accepting && { opacity: 0.6 }]}
@@ -186,12 +183,8 @@ export default function ChallengeDetailScreen({ route, navigation }) {
             disabled={accepting}
             activeOpacity={0.85}
           >
-            <Text style={styles.acceptBtnTitle}>
-              {accepting ? 'PROCESSING...' : '🏆 ACCEPT CHALLENGE'}
-            </Text>
-            <Text style={styles.acceptBtnSub}>
-              {accepting ? 'Opening payment...' : `Stake $${challenge.min_stake} · Refunded if you complete it`}
-            </Text>
+            <Text style={styles.acceptBtnTitle}>{accepting ? 'OPENING PAYMENT...' : '🏆 ACCEPT CHALLENGE'}</Text>
+            <Text style={styles.acceptBtnSub}>Stake ${challenge.min_stake} · Refunded if you complete it</Text>
           </TouchableOpacity>
         )}
 
@@ -205,10 +198,7 @@ export default function ChallengeDetailScreen({ route, navigation }) {
           </View>
         )}
 
-        {/* Participants leaderboard */}
-        <Text style={styles.sectionTitle}>
-          SQUAD STATUS ({participants.length})
-        </Text>
+        <Text style={styles.sectionTitle}>SQUAD STATUS ({participants.length})</Text>
 
         {participants.length === 0 ? (
           <View style={styles.emptyParticipants}>
@@ -247,7 +237,6 @@ export default function ChallengeDetailScreen({ route, navigation }) {
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#0A0A0F' },
   loading: { flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: '#0A0A0F' },
-
   header: {
     flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center',
     paddingHorizontal: 20, paddingVertical: 14,
@@ -255,58 +244,39 @@ const styles = StyleSheet.create({
   },
   back: { fontSize: 22, color: '#FF3366' },
   headerTitle: { fontSize: 15, fontWeight: '800', color: '#FF3366', letterSpacing: 2 },
-
   scroll: { paddingHorizontal: 20, paddingTop: 24 },
-
   groupLabel: { fontSize: 11, color: '#8888AA', letterSpacing: 2, marginBottom: 6 },
   title: { fontSize: 28, fontWeight: '800', color: '#FFFFFF', marginBottom: 8 },
   description: { fontSize: 14, color: '#8888AA', marginBottom: 20, lineHeight: 20 },
-
   statsRow: { flexDirection: 'row', gap: 12, marginBottom: 12 },
-  statCard: {
-    flex: 1, backgroundColor: '#12121A', borderRadius: 14,
-    padding: 16, borderWidth: 1, borderColor: '#2A2A3A',
-  },
+  statCard: { flex: 1, backgroundColor: '#12121A', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#2A2A3A' },
   statLabel: { fontSize: 10, color: '#8888AA', letterSpacing: 1, marginBottom: 6 },
   statValue: { fontSize: 22, fontWeight: '800', color: '#FFFFFF' },
-
-  howItWorks: {
-    backgroundColor: '#12121A', borderRadius: 14, padding: 16,
-    borderWidth: 1, borderColor: '#2A2A3A', marginTop: 8, marginBottom: 4,
-  },
+  howItWorks: { backgroundColor: '#12121A', borderRadius: 14, padding: 16, borderWidth: 1, borderColor: '#2A2A3A', marginTop: 8, marginBottom: 4 },
   howTitle: { fontSize: 11, color: '#8888AA', letterSpacing: 1.5, marginBottom: 8 },
   howText: { fontSize: 13, color: '#C0C0D0', lineHeight: 20 },
-
-  // One-tap accept button
   acceptBtn: {
     backgroundColor: '#FF3366', borderRadius: 16, padding: 20,
     alignItems: 'center', marginTop: 16, marginBottom: 8,
-    shadowColor: '#FF3366', shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.4, shadowRadius: 16,
+    shadowColor: '#FF3366', shadowOffset: { width: 0, height: 8 }, shadowOpacity: 0.4, shadowRadius: 16,
   },
   acceptBtnTitle: { color: '#fff', fontSize: 17, fontWeight: '800', letterSpacing: 1, marginBottom: 4 },
   acceptBtnSub: { color: 'rgba(255,255,255,0.7)', fontSize: 12 },
-
   joinedBanner: {
     flexDirection: 'row', alignItems: 'center', gap: 14,
     backgroundColor: 'rgba(0,230,118,0.1)', borderRadius: 14, padding: 16,
-    marginTop: 16, marginBottom: 8,
-    borderWidth: 1, borderColor: 'rgba(0,230,118,0.3)',
+    marginTop: 16, marginBottom: 8, borderWidth: 1, borderColor: 'rgba(0,230,118,0.3)',
   },
   joinedBannerIcon: { fontSize: 22, color: '#00E676' },
   joinedBannerTitle: { fontSize: 13, fontWeight: '800', color: '#00E676', letterSpacing: 0.5 },
   joinedBannerSub: { fontSize: 12, color: '#8888AA', marginTop: 2 },
-
   sectionTitle: { fontSize: 16, fontWeight: '800', color: '#FFFFFF', marginTop: 28, marginBottom: 14 },
-
   emptyParticipants: { paddingVertical: 32, alignItems: 'center', gap: 8 },
   emptyIcon: { fontSize: 32 },
   emptyText: { color: '#555570', fontSize: 13 },
-
   participantRow: {
     flexDirection: 'row', alignItems: 'center', backgroundColor: '#12121A',
-    borderRadius: 14, padding: 14, marginBottom: 10,
-    borderWidth: 1, borderColor: '#2A2A3A', gap: 12,
+    borderRadius: 14, padding: 14, marginBottom: 10, borderWidth: 1, borderColor: '#2A2A3A', gap: 12,
   },
   rank: { fontSize: 13, fontWeight: '800', color: '#8888AA', width: 24 },
   avatar: { width: 40, height: 40, borderRadius: 20, justifyContent: 'center', alignItems: 'center' },

@@ -41,17 +41,27 @@ class ApiService {
   }
 
   // Payments
+  // createPaymentSheet normalizes the backend response so Stripe SDK always gets
+  // paymentIntentClientSecret regardless of which field name the backend uses
   async createPaymentSheet(stakeAmount) {
-    const data = await this.request('POST', '/api/payments/create-payment-sheet', { amount: stakeAmount });
+    const raw = await this.request('POST', '/api/payments/create-payment-sheet', { amount: stakeAmount });
+    // Backend returns { paymentIntent, ephemeralKey, customer, publishableKey, payment_intent_id, amount }
+    // Stripe SDK needs paymentIntentClientSecret
     return {
-      clientSecret: data.client_secret || data.clientSecret,
-      paymentIntentId: data.payment_intent_id || data.paymentIntentId,
-      amount: data.amount,
+      paymentIntentClientSecret: raw.paymentIntent || raw.client_secret,
+      ephemeralKey: raw.ephemeralKey,
+      customer: raw.customer,
+      publishableKey: raw.publishableKey,
+      paymentIntentId: raw.payment_intent_id,
+      amount: raw.amount,
     };
   }
+
+  // Legacy — returns { client_secret, payment_intent_id, amount }
   async createPaymentIntent(stakeAmount) {
     return this.request('POST', '/api/payments/create-intent', { amount: stakeAmount });
   }
+
   async getPaymentHistory() { return this.request('GET', '/api/payments/history'); }
 
   // User
