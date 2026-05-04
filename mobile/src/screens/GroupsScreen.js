@@ -285,7 +285,7 @@ const styles = StyleSheet.create({
   modalSubtitle: { fontSize: 13, color: theme.colors.textMuted, marginBottom: 20 },
   modalInput: {
     backgroundColor: theme.colors.inputBg, borderRadius: 12, padding: 16,
-    color: theme.colors.text, fontSize: 16, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 16,
+    color: '#FFFFFF', fontSize: 16, borderWidth: 1, borderColor: theme.colors.border, marginBottom: 16,
   },
   codeInput: {
     fontSize: 26, fontWeight: '800', letterSpacing: 8, textAlign: 'center', color: theme.colors.accent,
