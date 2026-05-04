@@ -16,7 +16,8 @@ class ChallengeCreate(BaseModel):
     min_stake: int = Field(5, ge=1, le=500)
 
 
-class ChallengeJoin(BaseModel):
+class ChallengeJoinWithStake(BaseModel):
+    payment_intent_id: str
     stake_amount: int = Field(..., ge=1, le=500)
 
 
@@ -25,10 +26,8 @@ async def create_challenge(
     data: ChallengeCreate,
     user: dict = Depends(get_current_user),
 ):
-    """Create a group challenge."""
     db = get_supabase()
 
-    # Must be a group member
     membership = db.table("group_members").select("id").eq("group_id", data.group_id).eq("user_id", user["id"]).execute()
     if not membership.data:
         raise HTTPException(status_code=403, detail="Not a member of this group")
@@ -49,7 +48,6 @@ async def create_challenge(
 
     challenge = result.data[0]
 
-    # Emit group event
     try:
         db.table("group_events").insert({
             "group_id": data.group_id,
@@ -69,7 +67,6 @@ async def create_challenge(
 
 @router.get("/group/{group_id}")
 async def get_group_challenges(group_id: str, user: dict = Depends(get_current_user)):
-    """Get all challenges for a group."""
     db = get_supabase()
 
     membership = db.table("group_members").select("id").eq("group_id", group_id).eq("user_id", user["id"]).execute()
@@ -94,14 +91,12 @@ async def get_group_challenges(group_id: str, user: dict = Depends(get_current_u
 
 @router.get("/{challenge_id}")
 async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user)):
-    """Get a single challenge with participants."""
     db = get_supabase()
 
     challenge = db.table("group_challenges").select("*").eq("id", challenge_id).single().execute()
     if not challenge.data:
         raise HTTPException(status_code=404, detail="Challenge not found")
 
-    # Verify membership
     membership = db.table("group_members").select("id").eq("group_id", challenge.data["group_id"]).eq("user_id", user["id"]).execute()
     if not membership.data:
         raise HTTPException(status_code=403, detail="Not a member of this group")
@@ -109,7 +104,7 @@ async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user
     participants_raw = db.table("challenge_participants").select("*").eq("challenge_id", challenge_id).execute()
     participant_ids = [p["user_id"] for p in (participants_raw.data or [])]
 
-    profiles = db.table("profiles").select("id, display_name, streak").in_("id", participant_ids).execute()
+    profiles = db.table("profiles").select("id, display_name, streak").in_("id", participant_ids).execute() if participant_ids else type('obj', (object,), {'data': []})()
     profile_map = {p["id"]: p for p in (profiles.data or [])}
 
     participants = []
@@ -135,10 +130,14 @@ async def get_challenge(challenge_id: str, user: dict = Depends(get_current_user
 @router.post("/{challenge_id}/join")
 async def join_challenge(
     challenge_id: str,
-    data: ChallengeJoin,
+    data: ChallengeJoinWithStake,
     user: dict = Depends(get_current_user),
 ):
-    """Join a challenge by staking."""
+    """
+    Join a challenge after Stripe payment has already been authorized.
+    The mobile app creates the payment sheet, user pays, then calls this endpoint
+    with the payment_intent_id to create the linked stake.
+    """
     db = get_supabase()
 
     challenge = db.table("group_challenges").select("*").eq("id", challenge_id).single().execute()
@@ -148,38 +147,40 @@ async def join_challenge(
     if challenge.data["status"] != "active":
         raise HTTPException(status_code=400, detail="Challenge is no longer active")
 
-    if data.stake_amount < challenge.data["min_stake"]:
-        raise HTTPException(status_code=400, detail=f"Minimum stake is ${challenge.data['min_stake']}")
-
-    # Check already joined
     existing = db.table("challenge_participants").select("id").eq("challenge_id", challenge_id).eq("user_id", user["id"]).execute()
     if existing.data:
         raise HTTPException(status_code=400, detail="Already joined this challenge")
 
     # Create a regular stake linked to this challenge
-    from app.services.stripe_service import create_stake_payment
-    payment = await create_stake_payment(
-        amount=data.stake_amount,
-        user_id=user["id"],
-        user_email=user["email"],
-    )
+    ANTI_CHARITIES = {
+        "humanitarian": "Doctors Without Borders",
+        "poverty": "GiveDirectly",
+        "education": "Room to Read",
+        "health": "St. Jude Children's Research Hospital",
+        "environment": "WWF",
+        "animals": "ASPCA",
+        "surprise": "Verified Charity",
+    }
 
     stake_result = db.table("stakes").insert({
         "user_id": user["id"],
         "title": challenge.data["title"],
-        "description": f"Group challenge: {challenge.data.get('description', '')}",
+        "description": f"Group challenge in {challenge.data['group_id']}",
         "category": challenge.data["category"],
         "stake_amount": data.stake_amount,
         "deadline": challenge.data["deadline"],
         "anti_charity_id": "humanitarian",
         "anti_charity_name": "Doctors Without Borders",
         "status": "active",
-        "stripe_payment_intent_id": payment["payment_intent_id"],
+        "stripe_payment_intent_id": data.payment_intent_id,
     }).execute()
 
-    stake_id = stake_result.data[0]["id"] if stake_result.data else None
+    if not stake_result.data:
+        raise HTTPException(status_code=500, detail="Failed to create stake")
 
-    # Add participant
+    stake_id = stake_result.data[0]["id"]
+
+    # Add to challenge participants
     db.table("challenge_participants").insert({
         "challenge_id": challenge_id,
         "user_id": user["id"],
@@ -188,9 +189,24 @@ async def join_challenge(
         "status": "active",
     }).execute()
 
+    # Emit group event
+    try:
+        db.table("group_events").insert({
+            "group_id": challenge.data["group_id"],
+            "user_id": user["id"],
+            "stake_id": stake_id,
+            "event_type": "stake_created",
+            "payload": {
+                "title": challenge.data["title"],
+                "stake_amount": data.stake_amount,
+                "is_challenge": True,
+            },
+        }).execute()
+    except Exception:
+        pass
+
     return {
         "message": "Joined challenge",
-        "client_secret": payment["client_secret"],
-        "payment_intent_id": payment["payment_intent_id"],
         "stake_id": stake_id,
+        "challenge_id": challenge_id,
     }

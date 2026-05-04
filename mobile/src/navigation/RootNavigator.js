@@ -4,7 +4,7 @@ import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../hooks/useAuth';
 import { ActivityIndicator, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import Svg, { Path, Circle, Line, Rect } from 'react-native-svg';
+import Svg, { Path, Circle, Line } from 'react-native-svg';
 import { theme } from '../utils/theme';
 
 // Auth
@@ -23,6 +23,8 @@ import GroupsScreen from '../screens/GroupsScreen';
 import GroupDetailScreen from '../screens/GroupDetailScreen';
 import CreateGroupScreen from '../screens/CreateGroupScreen';
 import GroupChallengesScreen from '../screens/GroupChallengesScreen';
+import ChallengeDetailScreen from '../screens/ChallengeDetailScreen';
+import CreateChallengeScreen from '../screens/CreateChallengeScreen';
 
 const Stack = createNativeStackNavigator();
 const Tab = createBottomTabNavigator();
@@ -120,6 +122,8 @@ function AppStack() {
       <Stack.Screen name="GroupDetail" component={GroupDetailScreen} />
       <Stack.Screen name="CreateGroup" component={CreateGroupScreen} options={{ presentation: 'modal' }} />
       <Stack.Screen name="GroupChallenges" component={GroupChallengesScreen} />
+      <Stack.Screen name="ChallengeDetail" component={ChallengeDetailScreen} />
+      <Stack.Screen name="CreateChallenge" component={CreateChallengeScreen} options={{ presentation: 'modal' }} />
     </Stack.Navigator>
   );
 }

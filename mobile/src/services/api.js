@@ -42,7 +42,12 @@ class ApiService {
 
   // Payments
   async createPaymentSheet(stakeAmount) {
-    return this.request('POST', '/api/payments/create-payment-sheet', { amount: stakeAmount });
+    const data = await this.request('POST', '/api/payments/create-payment-sheet', { amount: stakeAmount });
+    return {
+      clientSecret: data.client_secret || data.clientSecret,
+      paymentIntentId: data.payment_intent_id || data.paymentIntentId,
+      amount: data.amount,
+    };
   }
   async createPaymentIntent(stakeAmount) {
     return this.request('POST', '/api/payments/create-intent', { amount: stakeAmount });
@@ -66,7 +71,9 @@ class ApiService {
   async getGroupChallenges(groupId) { return this.request('GET', `/api/challenges/group/${groupId}`); }
   async getChallenge(id) { return this.request('GET', `/api/challenges/${id}`); }
   async createChallenge(data) { return this.request('POST', '/api/challenges', data); }
-  async joinChallenge(id, stakeAmount) { return this.request('POST', `/api/challenges/${id}/join`, { stake_amount: stakeAmount }); }
+  async joinChallengeWithStake(challengeId, data) {
+    return this.request('POST', `/api/challenges/${challengeId}/join`, data);
+  }
 }
 
 export const api = new ApiService();

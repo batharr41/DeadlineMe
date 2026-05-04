@@ -54,7 +54,7 @@ export default function GroupDetailScreen({ route, navigation }) {
   const handleShare = async () => {
     if (!group) return;
     await Share.share({
-      message: `Join my accountability squad "${group.name}" on DeadlineMe!\nInvite code: ${group.invite_code}\n\nNo excuses. No extensions. No mercy.`,
+      message: `Join my accountability squad "${group.name}" on DeadlineMe!\nInvite code: ${group.invite_code}\n\nNo excuses. No extensions. No mercy.\n\ndeadline-me.vercel.app`,
     });
   };
 
@@ -118,6 +118,22 @@ export default function GroupDetailScreen({ route, navigation }) {
           </View>
         </View>
 
+        {/* ── CHALLENGES BUTTON ── */}
+        <TouchableOpacity
+          style={styles.challengesBtn}
+          onPress={() => navigation.navigate('GroupChallenges', { groupId: group.id, groupName: group.name })}
+          activeOpacity={0.8}
+        >
+          <View style={styles.challengesBtnLeft}>
+            <Text style={styles.challengesBtnIcon}>🏆</Text>
+            <View>
+              <Text style={styles.challengesBtnTitle}>GROUP CHALLENGES</Text>
+              <Text style={styles.challengesBtnSub}>Dare your squad to compete</Text>
+            </View>
+          </View>
+          <Text style={styles.challengesBtnArrow}>›</Text>
+        </TouchableOpacity>
+
         {/* Members */}
         <View style={styles.sectionHeader}>
           <Text style={styles.sectionTitle}>SQUAD MEMBERS</Text>
@@ -167,7 +183,7 @@ export default function GroupDetailScreen({ route, navigation }) {
             let titleColor = '#FFFFFF';
 
             if (isSuccess) { iconBg = theme.colors.success; icon = '✓'; titleText = 'MISSION SUCCESS'; titleColor = theme.colors.success; }
-            if (isFailure) { iconBg = theme.colors.accent;  icon = '✕'; titleText = 'MISSION FAILURE'; titleColor = theme.colors.accent; }
+            if (isFailure) { iconBg = theme.colors.accent; icon = '✕'; titleText = 'MISSION FAILURE'; titleColor = theme.colors.accent; }
             if (isCreated) { iconBg = theme.colors.warning; icon = '🔥'; titleText = 'STAKE LOCKED IN'; titleColor = theme.colors.warning; }
 
             const name = event.profiles?.display_name || 'Someone';
@@ -235,13 +251,26 @@ const styles = StyleSheet.create({
   },
   inviteCodeText: { fontSize: 12, fontWeight: '700', color: '#FFFFFF', letterSpacing: 2 },
 
-  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 32 },
+  statsRow: { flexDirection: 'row', gap: 12, marginBottom: 20 },
   statCard: {
     flex: 1, backgroundColor: '#12121A', borderRadius: 14,
     padding: 16, borderWidth: 1, borderColor: theme.colors.border,
   },
   statLabel: { fontSize: 10, color: '#8888AA', letterSpacing: 1, marginBottom: 6 },
   statValue: { fontSize: 26, fontWeight: '800' },
+
+  // Challenges button
+  challengesBtn: {
+    backgroundColor: '#12121A', borderRadius: 14, padding: 16,
+    flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between',
+    borderWidth: 1, borderColor: 'rgba(255,51,102,0.3)',
+    marginBottom: 24,
+  },
+  challengesBtnLeft: { flexDirection: 'row', alignItems: 'center', gap: 14 },
+  challengesBtnIcon: { fontSize: 28 },
+  challengesBtnTitle: { fontSize: 14, fontWeight: '800', color: '#FFFFFF', letterSpacing: 0.5 },
+  challengesBtnSub: { fontSize: 12, color: '#8888AA', marginTop: 2 },
+  challengesBtnArrow: { fontSize: 24, color: theme.colors.accent, lineHeight: 28 },
 
   sectionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 },
   sectionTitle: { fontSize: 18, fontWeight: '800', color: '#FFFFFF' },
