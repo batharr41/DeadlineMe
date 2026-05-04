@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import {
   View, Text, TouchableOpacity, StyleSheet, ScrollView,
-  RefreshControl, ActivityIndicator, Modal, TextInput, Alert,
+  RefreshControl, ActivityIndicator, Modal, TextInput, Alert, KeyboardAvoidingView, Platform,
 } from 'react-native';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { theme } from '../utils/theme';
@@ -173,7 +173,8 @@ export default function GroupsScreen({ navigation }) {
 
       {/* JOIN MODAL */}
       <Modal visible={showJoinModal} transparent animationType="slide">
-        <View style={styles.modalOverlay}>
+        <KeyboardAvoidingView style={{ flex: 1 }} behavior={Platform.OS === 'ios' ? 'padding' : 'height'}>
+          <View style={styles.modalOverlay}>
           <View style={styles.modalCard}>
             <Text style={styles.modalTitle}>JOIN WITH CODE</Text>
             <Text style={styles.modalSubtitle}>Enter the 8-character invite code from your squad</Text>
@@ -199,7 +200,8 @@ export default function GroupsScreen({ navigation }) {
               <Text style={styles.cancelText}>Cancel</Text>
             </TouchableOpacity>
           </View>
-        </View>
+          </View>
+        </KeyboardAvoidingView>
       </Modal>
     </SafeAreaView>
   );
@@ -274,9 +276,9 @@ const styles = StyleSheet.create({
   btnOutlineText: { color: theme.colors.accent, fontSize: 15, fontWeight: '800', letterSpacing: 1 },
 
   // Modal
-  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'flex-end' },
+  modalOverlay: { flex: 1, backgroundColor: 'rgba(0,0,0,0.85)', justifyContent: 'center', paddingHorizontal: 24 },
   modalCard: {
-    backgroundColor: theme.colors.card, borderTopLeftRadius: 24, borderTopRightRadius: 24,
+    backgroundColor: theme.colors.card, borderRadius: 20,
     padding: 28, borderWidth: 1, borderColor: theme.colors.border,
   },
   modalTitle: { fontSize: 18, fontWeight: '800', color: theme.colors.text, letterSpacing: 1, marginBottom: 6 },

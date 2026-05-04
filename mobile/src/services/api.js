@@ -68,6 +68,11 @@ class ApiService {
   async getGroup(id) { return this.request('GET', `/api/groups/${id}`); }
   async getGroupFeed(id) { return this.request('GET', `/api/groups/${id}/feed`); }
   async leaveGroup(id) { return this.request('DELETE', `/api/groups/${id}/leave`); }
+  async deleteGroup(id) { return this.request('DELETE', `/api/groups/${id}`); }
+  async removeMember(groupId, userId) { return this.request('DELETE', `/api/groups/${groupId}/members/${userId}`); }
+  async transferAdmin(groupId, newAdminUserId) {
+    return this.request('POST', `/api/groups/${groupId}/transfer-admin`, { new_admin_user_id: newAdminUserId });
+  }
 
   // Challenges
   async getGroupChallenges(groupId) { return this.request('GET', `/api/challenges/group/${groupId}`); }
