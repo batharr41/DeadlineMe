@@ -205,7 +205,7 @@ EXPO_PUBLIC_API_URL=http://localhost:8000
 ## Monetization
 
 - **Free tier:** 1 active stake at a time
-- **Pro ($7.99/mo):** Unlimited stakes, AI check-ins, streak tracking, analytics
+- **Pro ($2.99/mo):** Unlimited stakes, AI check-ins, streak tracking, analytics
 - **Transaction fee:** 5% on all forfeitures
 
 ## Roadmap
@@ -229,3 +229,6 @@ EXPO_PUBLIC_API_URL=http://localhost:8000
 ## Author
 
 Bilal Athar — [@batharr41](https://github.com/batharr41)
+Built by Bilal Athar — solo developer, designed and developed end-to-end.
+
+
