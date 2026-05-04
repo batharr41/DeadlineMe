@@ -7,9 +7,7 @@ class ApiService {
     const { data: { session } } = await supabase.auth.getSession();
     return {
       'Content-Type': 'application/json',
-      ...(session?.access_token && {
-        Authorization: `Bearer ${session.access_token}`,
-      }),
+      ...(session?.access_token && { Authorization: `Bearer ${session.access_token}` }),
     };
   }
 
@@ -41,12 +39,8 @@ class ApiService {
   }
 
   // Payments
-  // createPaymentSheet normalizes the backend response so Stripe SDK always gets
-  // paymentIntentClientSecret regardless of which field name the backend uses
   async createPaymentSheet(stakeAmount) {
     const raw = await this.request('POST', '/api/payments/create-payment-sheet', { amount: stakeAmount });
-    // Backend returns { paymentIntent, ephemeralKey, customer, publishableKey, payment_intent_id, amount }
-    // Stripe SDK needs paymentIntentClientSecret
     return {
       paymentIntentClientSecret: raw.paymentIntent || raw.client_secret,
       ephemeralKey: raw.ephemeralKey,
@@ -56,18 +50,16 @@ class ApiService {
       amount: raw.amount,
     };
   }
-
-  // Legacy — returns { client_secret, payment_intent_id, amount }
   async createPaymentIntent(stakeAmount) {
     return this.request('POST', '/api/payments/create-intent', { amount: stakeAmount });
   }
-
   async getPaymentHistory() { return this.request('GET', '/api/payments/history'); }
 
   // User
   async getProfile() { return this.request('GET', '/api/users/me'); }
   async updateProfile(data) { return this.request('PATCH', '/api/users/me', data); }
   async getStats() { return this.request('GET', '/api/users/me/stats'); }
+  async checkUsername(username) { return this.request('GET', `/api/users/check-username/${username}`); }
 
   // Groups
   async getMyGroups() { return this.request('GET', '/api/groups'); }

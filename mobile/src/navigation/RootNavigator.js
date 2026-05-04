@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import { createNativeStackNavigator } from '@react-navigation/native-stack';
 import { createBottomTabNavigator } from '@react-navigation/bottom-tabs';
 import { useAuth } from '../hooks/useAuth';
@@ -6,11 +6,13 @@ import { ActivityIndicator, View } from 'react-native';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import Svg, { Path, Circle, Line } from 'react-native-svg';
 import { theme } from '../utils/theme';
+import { api } from '../services/api';
 
 // Auth
 import SplashScreen from '../screens/SplashScreen';
 import SignInScreen from '../screens/SignInScreen';
 import SignUpScreen from '../screens/SignUpScreen';
+import UsernameScreen from '../screens/UsernameScreen';
 
 // App
 import DashboardScreen from '../screens/DashboardScreen';
@@ -38,7 +40,6 @@ function IconStakes({ color }) {
     </Svg>
   );
 }
-
 function IconHistory({ color }) {
   return (
     <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
@@ -49,7 +50,6 @@ function IconHistory({ color }) {
     </Svg>
   );
 }
-
 function IconGroups({ color }) {
   return (
     <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
@@ -58,7 +58,6 @@ function IconGroups({ color }) {
     </Svg>
   );
 }
-
 function IconProfile({ color }) {
   return (
     <Svg width={24} height={24} viewBox="0 0 24 24" fill="none">
@@ -112,9 +111,12 @@ function AuthStack() {
   );
 }
 
-function AppStack() {
+function AppStack({ needsUsername }) {
   return (
     <Stack.Navigator screenOptions={{ headerShown: false, contentStyle: { backgroundColor: theme.colors.bg } }}>
+      {needsUsername ? (
+        <Stack.Screen name="Username" component={UsernameScreen} />
+      ) : null}
       <Stack.Screen name="MainTabs" component={MainTabs} />
       <Stack.Screen name="NewStake" component={NewStakeScreen} options={{ presentation: 'modal' }} />
       <Stack.Screen name="StakeDetail" component={StakeDetailScreen} />
@@ -130,12 +132,27 @@ function AppStack() {
 
 export default function RootNavigator() {
   const { isAuthenticated, loading } = useAuth();
-  if (loading) {
+  const [needsUsername, setNeedsUsername] = useState(false);
+  const [profileChecked, setProfileChecked] = useState(false);
+
+  useEffect(() => {
+    if (!isAuthenticated) { setProfileChecked(false); return; }
+    api.getProfile().then(profile => {
+      setNeedsUsername(!profile.username);
+    }).catch(() => {
+      setNeedsUsername(false);
+    }).finally(() => {
+      setProfileChecked(true);
+    });
+  }, [isAuthenticated]);
+
+  if (loading || (isAuthenticated && !profileChecked)) {
     return (
       <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center', backgroundColor: theme.colors.bg }}>
         <ActivityIndicator size="large" color={theme.colors.accent} />
       </View>
     );
   }
-  return isAuthenticated ? <AppStack /> : <AuthStack />;
+
+  return isAuthenticated ? <AppStack needsUsername={needsUsername} /> : <AuthStack />;
 }

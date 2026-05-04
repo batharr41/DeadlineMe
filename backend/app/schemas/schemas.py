@@ -12,14 +12,6 @@ class StakeStatus(str, Enum):
     cancelled = "cancelled"
 
 
-class UrgencyLevel(str, Enum):
-    urgent = "urgent"
-    soon = "soon"
-    flexible = "flexible"
-
-
-# --- Stakes ---
-
 class StakeCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: Optional[str] = None
@@ -27,7 +19,6 @@ class StakeCreate(BaseModel):
     stake_amount: int = Field(..., ge=1, le=500)
     deadline: datetime
     anti_charity_id: str
-    custom_charity_name: Optional[str] = Field(default=None, max_length=200)
 
 
 class StakeResponse(BaseModel):
@@ -53,12 +44,6 @@ class StakeListResponse(BaseModel):
     total: int
 
 
-class CancelStakeRequest(BaseModel):
-    emergency: bool = False  # informational only — server determines based on time
-
-
-# --- Payments ---
-
 class PaymentIntentCreate(BaseModel):
     amount: int = Field(..., ge=1, le=500)
 
@@ -69,11 +54,10 @@ class PaymentIntentResponse(BaseModel):
     amount: int
 
 
-# --- Users ---
-
 class UserProfile(BaseModel):
     id: str
     email: str
+    username: Optional[str]
     display_name: Optional[str]
     avatar_url: Optional[str]
     streak: int = 0
@@ -99,9 +83,8 @@ class UserStats(BaseModel):
 class UserUpdate(BaseModel):
     display_name: Optional[str] = None
     avatar_url: Optional[str] = None
+    username: Optional[str] = None
 
-
-# --- Proof ---
 
 class ProofVerificationResult(BaseModel):
     verified: bool
