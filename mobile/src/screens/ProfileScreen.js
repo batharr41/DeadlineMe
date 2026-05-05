@@ -8,7 +8,7 @@ import { api } from '../services/api';
 
 const c = theme.colors;
 
-export default function ProfileScreen() {
+export default function ProfileScreen({ navigation }) {
   const { user, signOut } = useAuth();
   const [profile, setProfile] = useState(null);
 
@@ -30,6 +30,33 @@ export default function ProfileScreen() {
     ]);
   };
 
+  const handleCancelSubscription = () => {
+    Alert.alert(
+      'Cancel Pro',
+      'Your Pro access will continue until the end of the billing period. After that you\'ll be on the free plan.',
+      [
+        { text: 'Keep Pro', style: 'cancel' },
+        {
+          text: 'Cancel Subscription',
+          style: 'destructive',
+          onPress: async () => {
+            try {
+              await api.cancelSubscription();
+              Alert.alert('Cancelled', 'Your subscription will end at the end of the billing period.');
+              loadProfile();
+            } catch (err) {
+              Alert.alert('Error', err.message);
+            }
+          },
+        },
+      ]
+    );
+  };
+
+  const handleUpgradeToPro = () => {
+    navigation.navigate('ProPaywall');
+  };
+
   const displayName = profile?.display_name || user?.email?.split('@')[0] || 'You';
   const email = profile?.email || user?.email || '';
   const initials = displayName.slice(0, 2).toUpperCase();
@@ -39,6 +66,7 @@ export default function ProfileScreen() {
 
   const completed = profile?.stakes_completed ?? 0;
   const failed = profile?.stakes_failed ?? 0;
+  const isPro = profile?.is_pro ?? false;
 
   return (
     <SafeAreaView style={styles.container}>
@@ -57,12 +85,48 @@ export default function ProfileScreen() {
               <Text style={styles.avatarText}>{initials}</Text>
             </View>
           </View>
-          <Text style={styles.displayName}>{displayName}</Text>
+          <View style={styles.nameRow}>
+            <Text style={styles.displayName}>{displayName}</Text>
+            {isPro && (
+              <View style={styles.proBadge}>
+                <Text style={styles.proBadgeText}>PRO</Text>
+              </View>
+            )}
+          </View>
           <Text style={styles.email}>{email}</Text>
           {memberSince ? <Text style={styles.memberSince}>MEMBER SINCE {memberSince}</Text> : null}
         </View>
 
+        {/* Pro Management */}
+        <Text style={styles.sectionTitle}>MEMBERSHIP</Text>
+        {isPro ? (
+          <View style={styles.proCard}>
+            <View style={styles.proCardLeft}>
+              <Text style={styles.proCardIcon}>🔥</Text>
+              <View>
+                <Text style={styles.proCardTitle}>Pro Member</Text>
+                <Text style={styles.proCardSub}>Unlimited stakes · All features</Text>
+              </View>
+            </View>
+            <TouchableOpacity onPress={handleCancelSubscription} activeOpacity={0.7}>
+              <Text style={styles.cancelProText}>CANCEL</Text>
+            </TouchableOpacity>
+          </View>
+        ) : (
+          <TouchableOpacity style={styles.upgradeCard} onPress={handleUpgradeToPro} activeOpacity={0.8}>
+            <View style={styles.proCardLeft}>
+              <Text style={styles.proCardIcon}>⚡</Text>
+              <View>
+                <Text style={styles.upgradeTitle}>Upgrade to Pro</Text>
+                <Text style={styles.proCardSub}>Unlimited stakes · $4.99/mo</Text>
+              </View>
+            </View>
+            <Text style={styles.upgradeArrow}>→</Text>
+          </TouchableOpacity>
+        )}
+
         {/* Completed / Failed */}
+        <Text style={[styles.sectionTitle, { marginTop: 24 }]}>MISSION RECORD</Text>
         <View style={styles.missionGrid}>
           <View style={[styles.missionCard, styles.missionCardSuccess]}>
             <View style={styles.missionHeader}>
@@ -83,8 +147,7 @@ export default function ProfileScreen() {
         </View>
 
         {/* Financial audit */}
-        <Text style={styles.auditTitle}>FINANCIAL AUDIT</Text>
-
+        <Text style={styles.sectionTitle}>FINANCIAL AUDIT</Text>
         <View style={styles.auditCard}>
           <View style={styles.auditRow}>
             <Text style={styles.auditLabel}>Total Staked</Text>
@@ -122,6 +185,11 @@ const styles = StyleSheet.create({
   bolt: { fontSize: 18, color: c.accent },
   wordmark: { fontSize: 18, fontWeight: '700', color: c.accent, letterSpacing: 2 },
 
+  sectionTitle: {
+    fontSize: 11, fontWeight: '700', color: c.textTertiary,
+    letterSpacing: 1.5, marginBottom: 10,
+  },
+
   // Avatar
   avatarSection: { alignItems: 'center', marginBottom: 28, gap: 6 },
   avatarRing: {
@@ -135,16 +203,40 @@ const styles = StyleSheet.create({
     alignItems: 'center', justifyContent: 'center',
   },
   avatarText: { fontSize: 28, fontWeight: '700', color: c.accent },
+  nameRow: { flexDirection: 'row', alignItems: 'center', gap: 8 },
   displayName: { fontSize: 20, fontWeight: '700', color: c.text, letterSpacing: -0.3 },
+  proBadge: {
+    backgroundColor: c.accent, paddingHorizontal: 8, paddingVertical: 2,
+    borderRadius: 6,
+  },
+  proBadgeText: { fontSize: 10, fontWeight: '700', color: '#fff', letterSpacing: 1 },
   email: { fontSize: 13, color: c.textSecondary },
   memberSince: { fontSize: 10, fontWeight: '600', color: c.textTertiary, letterSpacing: 1.5, marginTop: 2 },
 
+  // Pro card
+  proCard: {
+    backgroundColor: 'rgba(255,45,85,0.08)', borderRadius: 14,
+    borderWidth: 1, borderColor: 'rgba(255,45,85,0.25)',
+    padding: 16, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginBottom: 8,
+  },
+  upgradeCard: {
+    backgroundColor: c.card, borderRadius: 14,
+    borderWidth: 1, borderColor: c.border,
+    padding: 16, flexDirection: 'row', alignItems: 'center',
+    justifyContent: 'space-between', marginBottom: 8,
+  },
+  proCardLeft: { flexDirection: 'row', alignItems: 'center', gap: 12 },
+  proCardIcon: { fontSize: 24 },
+  proCardTitle: { fontSize: 15, fontWeight: '700', color: c.text },
+  upgradeTitle: { fontSize: 15, fontWeight: '700', color: c.accent },
+  proCardSub: { fontSize: 12, color: c.textTertiary, marginTop: 2 },
+  cancelProText: { fontSize: 11, fontWeight: '700', color: c.accent, letterSpacing: 1 },
+  upgradeArrow: { fontSize: 16, color: c.accent, fontWeight: '700' },
+
   // Mission grid
   missionGrid: { flexDirection: 'row', gap: 10, marginBottom: 24 },
-  missionCard: {
-    flex: 1, borderRadius: 14, padding: 16,
-    borderWidth: 1, gap: 4,
-  },
+  missionCard: { flex: 1, borderRadius: 14, padding: 16, borderWidth: 1, gap: 4 },
   missionCardSuccess: { backgroundColor: 'rgba(52,199,89,0.08)', borderColor: 'rgba(52,199,89,0.25)' },
   missionCardFail: { backgroundColor: 'rgba(255,45,85,0.08)', borderColor: 'rgba(255,45,85,0.2)' },
   missionHeader: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8 },
@@ -156,7 +248,6 @@ const styles = StyleSheet.create({
   missionSub: { fontSize: 11, color: c.textTertiary, lineHeight: 16 },
 
   // Audit
-  auditTitle: { fontSize: 11, fontWeight: '700', color: c.textTertiary, letterSpacing: 1.5, marginBottom: 10 },
   auditCard: {
     backgroundColor: c.card, borderRadius: 14, borderWidth: 1, borderColor: c.border,
     overflow: 'hidden', marginBottom: 20,
