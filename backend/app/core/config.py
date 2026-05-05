@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     stripe_secret_key: str = ""
     stripe_publishable_key: str = ""
     stripe_webhook_secret: str = ""
+    stripe_pro_price_id: str = ""
 
     # OpenAI
     openai_api_key: str = ""
