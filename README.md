@@ -222,7 +222,7 @@ EXPO_PUBLIC_API_URL=http://localhost:8000
 - [x] Admin controls (remove member, delete group, transfer admin)
 - [x] Landing page + waitlist
 - [ ] Push notifications (requires EAS Build)
-- [ ] Pro tier paywall ($7.99/mo)
+- [ ] Pro tier paywall ($4.99/mo)
 - [ ] Stripe live mode
 - [ ] App Store / TestFlight
 
