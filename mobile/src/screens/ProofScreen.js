@@ -18,7 +18,7 @@ export default function ProofScreen({ route, navigation }) {
       return;
     }
     const res = await ImagePicker.launchImageLibraryAsync({
-      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      mediaTypes: ['images'],
       allowsEditing: true,
       quality: 0.8,
     });
@@ -31,7 +31,11 @@ export default function ProofScreen({ route, navigation }) {
       Alert.alert('Permission needed', 'We need camera access.');
       return;
     }
-    const res = await ImagePicker.launchCameraAsync({ allowsEditing: true, quality: 0.8 });
+    const res = await ImagePicker.launchCameraAsync({
+      mediaTypes: ['images'],
+      allowsEditing: true,
+      quality: 0.8,
+    });
     if (!res.canceled) setImage(res.assets[0].uri);
   };
 
